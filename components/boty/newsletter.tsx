@@ -18,7 +18,7 @@ export function Newsletter() {
         >
           <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1784539923/11111_7_xm8ovg.mp4" type="video/mp4" />
         </video>
-        <div className="absolute inset-0 bg-background/80" />
+        <div className="absolute inset-0 bg-green-900/80" />
       </div>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         <div className="max-w-2xl mx-auto text-center">
