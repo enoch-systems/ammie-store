@@ -14,18 +14,27 @@ export function Newsletter() {
           muted
           loop
           playsInline
-          className="w-full h-full object-cover opacity-20"
+          className="w-full h-full object-cover"
         >
           <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1784539923/11111_7_xm8ovg.mp4" type="video/mp4" />
         </video>
-        <div className="absolute inset-0 bg-green-900/80" />
+        {/* Subtle dark overlay for text readability */}
+        <div className="absolute inset-0 bg-black/40" />
+        {/* Left edge blend */}
+        <div className="absolute inset-y-0 left-0 w-24 md:w-48 bg-gradient-to-r from-background to-transparent" />
+        {/* Right edge blend */}
+        <div className="absolute inset-y-0 right-0 w-24 md:w-48 bg-gradient-to-l from-background to-transparent" />
+        {/* Top edge blend */}
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background to-transparent" />
+        {/* Bottom edge blend */}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
       </div>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="font-sans text-4xl leading-tight text-foreground mb-4 text-balance md:text-7xl">
+          <h2 className="font-sans text-4xl leading-tight text-white mb-4 text-balance md:text-7xl">
             Subscribe to our YouTube
           </h2>
-          <p className="font-sans text-lg text-foreground/70 mb-10">
+          <p className="font-sans text-lg text-white/80 mb-10">
             Watch tutorials, styling tips, and behind-the-scenes content from the Ammie family.
           </p>
 
