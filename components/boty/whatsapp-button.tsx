@@ -8,7 +8,7 @@ export function WhatsAppButton() {
   const message = "Hello! I'm interested in your products."
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
 
-  if (pathname.startsWith("/admin")) return null
+  if (pathname.startsWith("/admin") || pathname.startsWith("/invoice")) return null
 
   return (
     <a

@@ -67,3 +67,59 @@ ON products FOR DELETE USING (auth.role() = 'authenticated');
 -- after the table exists.
 -- =====================================================
 ALTER PUBLICATION supabase_realtime ADD TABLE products;
+
+-- =====================================================
+-- ORDERS TABLE
+-- Stores checkout orders with customer info and items
+-- =====================================================
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT NOT NULL,
+  customer_country TEXT NOT NULL DEFAULT 'Nigeria',
+  customer_state TEXT NOT NULL DEFAULT '',
+  customer_address TEXT NOT NULL DEFAULT '',
+  items JSONB NOT NULL DEFAULT '[]',
+  subtotal DECIMAL(10, 2) NOT NULL,
+  shipping DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  total DECIMAL(10, 2) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'cancelled')),
+  access_token TEXT NOT NULL DEFAULT encode(gen_random_bytes(16), 'hex'),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for sorting by creation date
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+
+-- Index for searching by customer phone
+CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON orders(customer_phone);
+
+-- Index for access token lookups
+CREATE INDEX IF NOT EXISTS idx_orders_access_token ON orders(access_token);
+
+-- Trigger to update updated_at timestamp
+CREATE OR REPLACE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS: Allow anonymous users to insert orders (they don't need auth)
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can insert an order (checkout flow is public)
+CREATE POLICY "Anyone can insert orders"
+ON orders FOR INSERT WITH CHECK (true);
+
+-- Anyone can view their own order by ID
+CREATE POLICY "Anyone can view orders by ID"
+ON orders FOR SELECT USING (true);
+
+-- Only authenticated admins can update orders
+CREATE POLICY "Admins can update orders"
+ON orders FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- Only authenticated admins can delete orders
+CREATE POLICY "Admins can delete orders"
+ON orders FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Enable real-time for orders table
+ALTER PUBLICATION supabase_realtime ADD TABLE orders;
