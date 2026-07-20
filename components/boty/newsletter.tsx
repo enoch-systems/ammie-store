@@ -20,14 +20,14 @@ export function Newsletter() {
         </video>
         {/* Subtle dark overlay for text readability */}
         <div className="absolute inset-0 bg-black/40" />
-        {/* Left edge blend */}
-        <div className="absolute inset-y-0 left-0 w-24 md:w-48 bg-gradient-to-r from-background to-transparent" />
+        {/* Left edge blend - fades to page background */}
+        <div className="absolute inset-y-0 left-0 w-24 md:w-48" style={{ background: "linear-gradient(to right, #F7F4EF, transparent)" }} />
         {/* Right edge blend */}
-        <div className="absolute inset-y-0 right-0 w-24 md:w-48 bg-gradient-to-l from-background to-transparent" />
+        <div className="absolute inset-y-0 right-0 w-24 md:w-48" style={{ background: "linear-gradient(to left, #F7F4EF, transparent)" }} />
         {/* Top edge blend */}
-        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-background to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-24" style={{ background: "linear-gradient(to bottom, #F7F4EF, transparent)" }} />
         {/* Bottom edge blend */}
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to top, #F7F4EF, transparent)" }} />
       </div>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         <div className="max-w-2xl mx-auto text-center">
