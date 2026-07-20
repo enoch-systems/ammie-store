@@ -17,7 +17,7 @@ export function Hero() {
       {/* Background Video Grid */}
       <div className="absolute inset-0 border-b border-border/50 overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#e3e1e2' }}>
         {/* Mobile: 1 video */}
-        <div className="grid grid-cols-1 vsm:grid-cols-2 vmd:grid-cols-3 vlg:grid-cols-4 vxl:grid-cols-5 gap-0 w-full h-full mx-auto px-4 sm:px-6 lg:px-2 xl:px-4 py-8 md:py-12 lg:py-16">
+        <div className="grid grid-cols-1 vsm:grid-cols-2 vmd:grid-cols-3 vlg:grid-cols-4 vxl:grid-cols-5 gap-0 w-full h-full mx-auto px-0 sm:px-6 lg:px-2 xl:px-4 py-8 md:py-12 lg:py-16">
           {videoSources.map((src, i) => (
             <div key={i} className={`relative w-full h-full min-h-[50vh] md:min-h-[60vh] lg:min-h-[70vh] overflow-hidden rounded-2xl ${i === 1 ? 'hidden vsm:block' : ''} ${i === 2 ? 'hidden vmd:block' : ''} ${i === 3 ? 'hidden vlg:block' : ''} ${i === 4 ? 'hidden vxl:block' : ''}`}>
               <video
