@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ShoppingBag } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useCart } from "./cart-context"
+import { useLatestProducts } from "@/hooks/use-products"
 import { supabase } from "@/lib/supabase"
 
 interface FeaturedProduct {
@@ -18,8 +20,9 @@ interface FeaturedProduct {
 }
 
 export function ProductGrid() {
-  const [products, setProducts] = useState<FeaturedProduct[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: products = [], isLoading: loading } = useLatestProducts(6)
+  const queryClient = useQueryClient()
+
   const [isVisible, setIsVisible] = useState(true)
   const [headerVisible, setHeaderVisible] = useState(true)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -27,42 +30,7 @@ export function ProductGrid() {
   const { addItem } = useCart()
   const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({})
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(6)
-
-      if (error) throw error
-
-      // Transform to featured product format
-      const featuredProducts: FeaturedProduct[] = (data || []).map(product => ({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.images[0] || "/placeholder.svg",
-        badge: product.badge,
-        category: product.category,
-        description: product.description || ''
-      }))
-
-      setProducts(featuredProducts)
-    } catch (error) {
-      console.error('Error fetching products:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Fetch newest 6 products from Supabase
-  useEffect(() => {
-    fetchProducts()
-  }, [])
-
-  // Real-time subscription to reflect product changes instantly
+  // Real-time subscription: invalidate cache on any product change
   useEffect(() => {
     const channel = supabase
       .channel("home-products-changes")
@@ -70,7 +38,7 @@ export function ProductGrid() {
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
         () => {
-          fetchProducts()
+          queryClient.invalidateQueries({ queryKey: ["products"] })
         },
       )
       .subscribe()
@@ -78,7 +46,7 @@ export function ProductGrid() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchProducts])
+  }, [queryClient])
 
   // Preload all product images on mount
   useEffect(() => {
@@ -125,6 +93,20 @@ export function ProductGrid() {
     }
   }, [])
 
+  const handleAddToCart = useCallback(
+    (e: React.MouseEvent, product: FeaturedProduct) => {
+      e.preventDefault()
+      e.stopPropagation()
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+      })
+    },
+    [addItem]
+  )
+
   if (loading) {
     return (
       <section className="py-24 bg-card">
@@ -151,6 +133,8 @@ export function ProductGrid() {
     )
   }
 
+  const featuredProducts = products as FeaturedProduct[]
+
   return (
     <section className="py-24 bg-card">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -172,7 +156,7 @@ export function ProductGrid() {
           ref={gridRef}
           className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6"
         >
-          {products.map((product, index) => (
+          {featuredProducts.map((product, index) => (
             <Link
               key={product.id}
               href={`/product/${product.id}`}
@@ -195,6 +179,8 @@ export function ProductGrid() {
                     src={product.image || "/placeholder.svg"}
                     alt={product.name}
                     fill
+                    sizes="(max-width: 768px) 50vw, 33vw"
+                    priority={index < 3}
                     className={`object-cover boty-transition group-hover:scale-105 transition-opacity duration-500 ${
                       imageLoaded[product.id] ? 'opacity-100' : 'opacity-0'
                     }`}
@@ -218,16 +204,7 @@ export function ProductGrid() {
                   <button
                     type="button"
                     className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-background/90 backdrop-blur-sm flex items-center justify-center opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 boty-transition boty-shadow"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      addItem({
-                        id: product.id,
-                        name: product.name,
-                        price: product.price,
-                        image: product.image
-                      })
-                    }}
+                    onClick={(e) => handleAddToCart(e, product)}
                     aria-label="Add to cart"
                   >
                     <ShoppingBag className="w-4 h-4 text-foreground" />
@@ -243,16 +220,7 @@ export function ProductGrid() {
                   </div>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      addItem({
-                        id: product.id,
-                        name: product.name,
-                        price: product.price,
-                        image: product.image
-                      })
-                    }}
+                    onClick={(e) => handleAddToCart(e, product)}
                     className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 md:px-4 md:py-2.5 rounded-full text-[10px] md:text-xs tracking-wide boty-transition hover:bg-primary/90 boty-shadow"
                   >
                     <ShoppingBag className="w-3 h-3 md:w-3.5 md:h-3.5" />

@@ -9,6 +9,7 @@ import { Header } from "@/components/boty/header"
 import { Footer } from "@/components/boty/footer"
 import { useCart } from "@/components/boty/cart-context"
 import { supabase, type Product } from "@/lib/supabase"
+import { getOptimizedProductImage } from "@/lib/image-utils"
 
 const benefits = [
   { icon: Leaf, label: "100% Human Hair" },
@@ -59,7 +60,6 @@ export default function ProductPage() {
         }
       }
     } catch (error: any) {
-      // Only log error if it's not a "not found" error (which happens when product is deleted)
       if (!error || error.code !== 'PGRST116') {
         console.error('Error fetching product:', error)
       }
@@ -144,7 +144,7 @@ export default function ProductPage() {
       id: product.id,
       name: product.name,
       price: product.price,
-      image: realImages[0] || "/placeholder.svg"
+      image: getOptimizedProductImage(realImages[0] || "/placeholder.svg", "card")
     })
     setTimeout(() => setIsAdded(false), 2000)
   }
@@ -226,8 +226,58 @@ export default function ProductPage() {
 
   const sizesArray = product.sizes ? product.sizes.split(',').map((s) => s.trim()) : []
 
+  // JSON-LD structured data for Google rich snippets
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": product.name,
+    "description": product.description || `${product.name} is a premium quality hair product from Ammie N.`,
+    "image": realImages.map(img => getOptimizedProductImage(img, "detail")),
+    "sku": product.id,
+    "brand": {
+      "@type": "Brand",
+      "name": "Ammie N"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": `https://ammiestore.com/product/${product.id}`,
+      "priceCurrency": "NGN",
+      "price": product.price.toString(),
+      "itemCondition": "https://schema.org/NewCondition",
+      "availability": "https://schema.org/InStock",
+      "shippingDetails": {
+        "@type": "OfferShippingDetails",
+        "shippingRate": {
+          "@type": "MonetaryAmount",
+          "value": "0",
+          "currency": "NGN"
+        },
+        "deliveryTime": {
+          "@type": "ShippingDeliveryTime",
+          "handlingTime": { "@type": "QuantitativeValue", "minValue": 1, "maxValue": 2, "unitCode": "DAY" },
+          "transitTime": { "@type": "QuantitativeValue", "minValue": 2, "maxValue": 7, "unitCode": "DAY" }
+        },
+        "shippingDestination": {
+          "@type": "DefinedRegion",
+          "addressCountry": "NG"
+        }
+      }
+    },
+    "aggregateRating": product.review_count > 0 ? {
+      "@type": "AggregateRating",
+      "ratingValue": product.rating.toString(),
+      "reviewCount": product.review_count.toString()
+    } : undefined
+  }
+
   return (
     <main className="min-h-screen overflow-x-hidden">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <Header />
       
       <div className="pt-28 pb-20">
@@ -250,9 +300,10 @@ export default function ProductPage() {
                   onTouchEnd={handleTouchEnd}
                 >
                   <Image
-                    src={realImages[selectedImageIndex] || "/placeholder.svg"}
+                    src={getOptimizedProductImage(realImages[selectedImageIndex] || "/placeholder.svg", "detail")}
                     alt={`${product.name} - Image ${selectedImageIndex + 1}`}
                     fill
+                    sizes="(max-width: 1024px) 100vw, 50vw"
                     className="object-cover boty-transition"
                     priority
                   />
@@ -273,9 +324,10 @@ export default function ProductPage() {
                           }`}
                         >
                           <Image
-                            src={img}
+                            src={getOptimizedProductImage(img, "thumbnail")}
                             alt={`${product.name} thumbnail ${index + 1}`}
                             fill
+                            sizes="76px"
                             className="object-cover"
                           />
                         </button>
@@ -460,9 +512,10 @@ export default function ProductPage() {
                     <div className="bg-background rounded-3xl overflow-hidden boty-shadow boty-transition group-hover:scale-[1.02]">
                       <div className="relative aspect-square bg-muted overflow-hidden">
                         <Image
-                          src={suggestion.images[0] || "/placeholder.svg"}
+                          src={getOptimizedProductImage(suggestion.images[0] || "/placeholder.svg", "card")}
                           alt={suggestion.name}
                           fill
+                          sizes="(max-width: 640px) 50vw, 25vw"
                           className="object-cover boty-transition group-hover:scale-105"
                         />
                       </div>

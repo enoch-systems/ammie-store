@@ -4,24 +4,15 @@ import { useState, useEffect, useMemo, useRef, Suspense, useCallback } from "rea
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ShoppingBag, SlidersHorizontal, X, Search, ChevronLeft, ChevronRight } from "lucide-react"
+import { ShoppingBag, ChevronLeft, ChevronRight } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Header } from "@/components/boty/header"
 import { Footer } from "@/components/boty/footer"
 import { useCart } from "@/components/boty/cart-context"
-import { supabase, type Product } from "@/lib/supabase"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useProducts, type ShopProduct } from "@/hooks/use-products"
+import { supabase } from "@/lib/supabase"
 
 const categories = ["all", "wigs", "extensions", "lace"]
-
-interface ShopProduct {
-  id: string
-  name: string
-  price: number
-  image: string
-  badge: string | null
-  category: string
-  description: string
-}
 
 function ProductCard({ 
   product, 
@@ -34,6 +25,20 @@ function ProductCard({
 }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const { addItem } = useCart()
+
+  const handleAdd = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+      })
+    },
+    [addItem, product.id, product.name, product.price, product.image]
+  )
 
   return (
     <Link
@@ -57,6 +62,7 @@ function ProductCard({
             src={product.image || "/placeholder.svg"}
             alt={product.name}
             fill
+            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className={`object-cover boty-transition group-hover:scale-105 transition-opacity duration-500 ${
               imageLoaded ? 'opacity-100' : 'opacity-0'
             }`}
@@ -87,16 +93,7 @@ function ProductCard({
           </div>
           <button
             type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              addItem({
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                image: product.image
-              })
-            }}
+            onClick={handleAdd}
             className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 md:px-4 md:py-2.5 rounded-full text-[10px] md:text-xs tracking-wide boty-transition hover:bg-primary/90 boty-shadow"
           >
             <ShoppingBag className="w-3 h-3 md:w-3.5 md:h-3.5" />
@@ -111,54 +108,18 @@ function ProductCard({
 function ShopPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  
-  const [products, setProducts] = useState<ShopProduct[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+
+  const { data: products = [], isLoading: loading } = useProducts()
   
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "all")
-  const [showFilters, setShowFilters] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page")) || 1)
   const [windowWidth, setWindowWidth] = useState(0)
   const gridRef = useRef<HTMLDivElement>(null)
   const topPaginationRef = useRef<HTMLDivElement>(null)
 
-  // Fetch products from Supabase
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      
-      // Transform to shop product format
-      const shopProducts: ShopProduct[] = (data || []).map(product => ({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.images[0] || "/placeholder.svg",
-        badge: product.badge,
-        category: product.category,
-        description: product.description || ''
-      }))
-      
-      setProducts(shopProducts)
-    } catch (error) {
-      console.error('Error fetching products:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchProducts()
-  }, [fetchProducts])
-
-  // ── Real-time subscription ──────────────────────────────────────────
-  // Reflect product changes instantly without a page refresh.
+  // Real-time subscription: invalidate cache on any product change
   useEffect(() => {
     const channel = supabase
       .channel("shop-products-changes")
@@ -166,7 +127,7 @@ function ShopPageContent() {
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
         () => {
-          fetchProducts()
+          queryClient.invalidateQueries({ queryKey: ["products"] })
         },
       )
       .subscribe()
@@ -174,7 +135,7 @@ function ShopPageContent() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchProducts])
+  }, [queryClient])
 
   const filteredProducts = selectedCategory === "all"
     ? products

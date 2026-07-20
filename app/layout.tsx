@@ -6,6 +6,8 @@ import { CartProvider } from '@/components/boty/cart-context'
 import { SearchBlurProvider } from '@/components/boty/search-blur-context'
 import { WhatsAppButton } from '@/components/boty/whatsapp-button'
 import { Toaster } from '@/components/ui/sonner'
+import { QueryProvider } from '@/components/boty/query-provider'
+import { LenisProvider } from '@/components/boty/lenis-provider'
 import './globals.css'
 
 const dmSans = DM_Sans({ 
@@ -43,11 +45,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} ${playfairDisplay.variable} font-sans antialiased`}>
-        <CartProvider>
-          <SearchBlurProvider>
-            {children}
-          </SearchBlurProvider>
-        </CartProvider>
+        <QueryProvider>
+          <CartProvider>
+            <SearchBlurProvider>
+              <LenisProvider>
+                {children}
+              </LenisProvider>
+            </SearchBlurProvider>
+          </CartProvider>
+        </QueryProvider>
         <WhatsAppButton />
         <Analytics />
         <Toaster />
