@@ -7,21 +7,21 @@ const YOUTUBE_URL = "https://www.youtube.com/@AmmieStore"
 
 export function Newsletter() {
   return (
-    <section className="py-24 bg-red-600 relative overflow-hidden">
+    <section className="py-24 relative overflow-hidden">
       <div className="absolute inset-0">
         <img
           src="https://res.cloudinary.com/deafv5ovi/image/upload/v1784538603/Netaeliaehmonet_on_ig_jchow8.jpg"
           alt=""
           className="w-full h-full object-cover opacity-20"
         />
-        <div className="absolute inset-0 bg-red-600/80" />
+        <div className="absolute inset-0 bg-background/80" />
       </div>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="font-serif text-4xl leading-tight text-white mb-4 text-balance md:text-7xl">
+          <h2 className="font-sans text-4xl leading-tight text-foreground mb-4 text-balance md:text-7xl">
             Subscribe to our YouTube
           </h2>
-          <p className="text-lg text-white/80 mb-10">
+          <p className="font-sans text-lg text-foreground/70 mb-10">
             Watch tutorials, styling tips, and behind-the-scenes content from the Ammie family.
           </p>
 
@@ -29,7 +29,7 @@ export function Newsletter() {
             href={YOUTUBE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="group inline-flex items-center justify-center gap-3 bg-red-500 hover:bg-red-400 text-white px-8 py-4 rounded-full text-sm tracking-wide transition-all duration-300 border border-white/20"
+            className="group inline-flex items-center justify-center gap-3 bg-red-600 hover:bg-red-500 text-white px-8 py-4 rounded-full text-sm tracking-wide transition-all duration-300"
           >
             {/* YouTube Icon */}
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
