@@ -9,11 +9,15 @@ export function Newsletter() {
   return (
     <section className="py-24 relative overflow-hidden">
       <div className="absolute inset-0">
-        <img
-          src="https://res.cloudinary.com/deafv5ovi/image/upload/v1784538603/Netaeliaehmonet_on_ig_jchow8.jpg"
-          alt=""
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
           className="w-full h-full object-cover opacity-20"
-        />
+        >
+          <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1784539923/11111_7_xm8ovg.mp4" type="video/mp4" />
+        </video>
         <div className="absolute inset-0 bg-background/80" />
       </div>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
