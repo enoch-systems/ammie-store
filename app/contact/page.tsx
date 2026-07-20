@@ -30,24 +30,24 @@ export default function ContactPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {[
                 {
+                  name: "Instagram",
+                  icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/instagram_u9lr7l.png",
+                  url: "https://www.instagram.com/ammie_nwigs?igsh=MWR4NXJyeXB4dTlvZw==",
+                },
+                {
                   name: "TikTok",
                   icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/tiktok_rsrzwc.png",
-                  url: "https://www.tiktok.com/@ammiestore",
+                  url: "https://www.tiktok.com/@amysglamroom?_r=1&_t=ZS-988kqtnNJoq",
                 },
                 {
                   name: "Facebook",
                   icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/facebook_qgj6dg.png",
-                  url: "https://www.facebook.com/ammiestore",
-                },
-                {
-                  name: "Instagram",
-                  icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/instagram_u9lr7l.png",
-                  url: "https://www.instagram.com/ammiestore",
+                  url: "https://www.facebook.com/share/1PFS4iCgiH/?mibextid=wwXIfr",
                 },
                 {
                   name: "YouTube",
                   icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573106/youtube_qtbvcz.png",
-                  url: "https://www.youtube.com/@AmmieStore",
+                  url: "https://www.youtube.com/@TheAmmieN",
                 },
               ].map((social) => (
                 <a
