@@ -3,22 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Search, X, Star } from "lucide-react"
-
-const products = [
-  { id: "night-cream", name: "HD Transparent Wig", price: 220000, originalPrice: null, image: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784373792/a3_kfbbhu.jpg", category: "wigs", badge: "Bestseller" },
-  { id: "day-cream-spf", name: "Glueless Wig", price: 160000, originalPrice: null, image: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784373791/a4_p4sfzq.jpg", category: "wigs", badge: null },
-  { id: "hydra-cream", name: "Lace Front Wig", price: 180000, originalPrice: null, image: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784373791/a1_gxtoky.webp", category: "wigs", badge: null },
-  { id: "gentle-cleanser", name: "Full Lace Wig", price: 250000, originalPrice: 300000, image: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784373791/a33_uj2pbf.jpg", category: "wigs", badge: "Sale" },
-  { id: "radiance-serum", name: "Brazilian Body Wave", price: 120000, originalPrice: null, image: "/images/products/serum-bottles-1.png", category: "extensions", badge: "Bestseller" },
-  { id: "hydrating-serum", name: "Peruvian Straight", price: 95000, originalPrice: null, image: "/images/products/eye-serum-bottles.png", category: "extensions", badge: null },
-  { id: "age-defense-serum", name: "Malaysian Curly", price: 150000, originalPrice: null, image: "/images/products/amber-dropper-bottles.png", category: "extensions", badge: "New" },
-  { id: "glow-serum", name: "Clip-In Extensions", price: 85000, originalPrice: 105000, image: "/images/products/spray-bottles.png", category: "extensions", badge: "Sale" },
-  { id: "renewal-oil", name: "Pre-Cut Lace Closure", price: 57000, originalPrice: null, image: "/images/products/amber-dropper-bottles.png", category: "lace", badge: "New" },
-  { id: "rosehip-oil", name: "Transparent Lace Frontal", price: 78000, originalPrice: null, image: "/images/products/serum-bottles-1.png", category: "lace", badge: null },
-  { id: "jojoba-oil", name: "Colored Lace Frontal", price: 65000, originalPrice: null, image: "/images/products/spray-bottles.png", category: "lace", badge: null },
-  { id: "argan-oil", name: "Deep Wave Closure", price: 88000, originalPrice: null, image: "/images/products/pump-bottles-cream.png", category: "lace", badge: "Bestseller" },
-]
+import { Search, X } from "lucide-react"
+import { useProducts } from "@/hooks/use-products"
 
 interface SearchOverlayProps {
   isOpen: boolean
@@ -28,6 +14,7 @@ interface SearchOverlayProps {
 export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const { data: products = [] } = useProducts()
 
   useEffect(() => {
     if (isOpen) {
