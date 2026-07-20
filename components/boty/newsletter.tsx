@@ -7,34 +7,16 @@ const YOUTUBE_URL = "https://www.youtube.com/@AmmieStore"
 
 export function Newsletter() {
   return (
-    <section className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0">
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="w-full h-full object-cover"
-        >
-          <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1784539923/11111_7_xm8ovg.mp4" type="video/mp4" />
-        </video>
-        {/* Subtle dark overlay for text readability */}
-        <div className="absolute inset-0 bg-black/40" />
-        {/* Left edge blend - fades to page background */}
-        <div className="absolute inset-y-0 left-0 w-24 md:w-48" style={{ background: "linear-gradient(to right, #F7F4EF, transparent)" }} />
-        {/* Right edge blend */}
-        <div className="absolute inset-y-0 right-0 w-24 md:w-48" style={{ background: "linear-gradient(to left, #F7F4EF, transparent)" }} />
-        {/* Top edge blend */}
-        <div className="absolute inset-x-0 top-0 h-24" style={{ background: "linear-gradient(to bottom, #F7F4EF, transparent)" }} />
-        {/* Bottom edge blend */}
-        <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to top, #F7F4EF, transparent)" }} />
-      </div>
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+    <section className="py-24 bg-background">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="font-sans text-4xl leading-tight text-white mb-4 text-balance md:text-7xl">
+          <span className="text-sm tracking-[0.3em] uppercase text-primary mb-4 block">
+            Join us on YouTube
+          </span>
+          <h2 className="font-serif text-4xl leading-tight text-foreground mb-6 text-balance md:text-7xl">
             Subscribe to our YouTube
           </h2>
-          <p className="font-sans text-lg text-white/80 mb-10">
+          <p className="text-lg text-muted-foreground leading-relaxed mb-10">
             Watch tutorials, styling tips, and behind-the-scenes content from the Ammie family.
           </p>
 
