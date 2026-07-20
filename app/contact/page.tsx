@@ -1,40 +1,10 @@
 "use client"
 
-import { useState } from "react"
 import { Header } from "@/components/boty/header"
 import { Footer } from "@/components/boty/footer"
-import { Phone, Send } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { Phone } from "lucide-react"
 
 export default function ContactPage() {
-  const [formData, setFormData] = useState({
-    message: ""
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const { toast } = useToast()
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    // Simulate form submission
-    setTimeout(() => {
-      toast({
-        title: "Message sent successfully!",
-        description: "We'll get back to you within 24-48 hours.",
-      })
-      setFormData({ message: "" })
-      setIsSubmitting(false)
-    }, 1000)
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
   return (
     <main className="min-h-screen">
       <Header />
@@ -54,54 +24,55 @@ export default function ContactPage() {
             </p>
           </div>
 
+          {/* Social Links */}
           <div className="max-w-3xl mx-auto mb-16">
-            {/* Contact Form */}
-            <div>
-              <div className="bg-card rounded-3xl p-8 md:p-10 boty-shadow">
-                <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-2">
-                  Send us a message
-                </h2>
-                <p className="text-muted-foreground mb-8">
-                  Fill out the form below and we'll get back to you shortly.
-                </p>
+            <div className="text-center mb-10">
+              <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-2">
+                Follow Us
+              </h2>
+              <p className="text-muted-foreground">
+                Connect with us on social media for the latest updates and styles.
+              </p>
+            </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div>
-                    <label htmlFor="message" className="block text-sm font-medium text-foreground mb-2">
-                      Message *
-                    </label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      value={formData.message}
-                      onChange={handleChange}
-                      required
-                      rows={8}
-                      className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent boty-transition resize-none"
-                      placeholder="Tell us more about your inquiry..."
-                      style={{ fontSize: '16px' }}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 boty-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        Send Message
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  name: "TikTok",
+                  icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/tiktok_rsrzwc.png",
+                  url: "https://www.tiktok.com/@ammiestore",
+                },
+                {
+                  name: "Facebook",
+                  icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/facebook_qgj6dg.png",
+                  url: "https://www.facebook.com/ammiestore",
+                },
+                {
+                  name: "Instagram",
+                  icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573107/instagram_u9lr7l.png",
+                  url: "https://www.instagram.com/ammiestore",
+                },
+                {
+                  name: "YouTube",
+                  icon: "https://res.cloudinary.com/deafv5ovi/image/upload/v1784573106/youtube_qtbvcz.png",
+                  url: "https://www.youtube.com/@AmmieStore",
+                },
+              ].map((social) => (
+                <a
+                  key={social.name}
+                  href={social.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-card boty-shadow hover:shadow-md transition-shadow duration-300"
+                >
+                  <img
+                    src={social.icon}
+                    alt={social.name}
+                    className="w-12 h-12 object-contain"
+                  />
+                  <span className="text-sm font-medium text-foreground">{social.name}</span>
+                </a>
+              ))}
             </div>
           </div>
 
