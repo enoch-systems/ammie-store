@@ -26,21 +26,8 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   keywords: ['wigs', 'hair extensions', 'lace frontals', 'human hair', 'beauty', 'hair care', 'lace wigs'],
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: 'https://res.cloudinary.com/deafv5ovi/image/upload/v1784555201/a_dow3yp.png',
+    apple: 'https://res.cloudinary.com/deafv5ovi/image/upload/v1784555201/a_dow3yp.png',
   },
 }
 

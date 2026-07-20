@@ -55,7 +55,7 @@ export function Hero() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-blur-in opacity-0" style={{ animationDelay: '1s', animationFillMode: 'forwards' }}>
               <Link
                 href="/shop"
-                className="group inline-flex items-center justify-center gap-3 bg-black text-white px-8 py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-black/90 boty-shadow lg:bg-black lg:text-white"
+                className="group inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-8 py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 boty-shadow"
               >
                 Shop Now
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 boty-transition" />
