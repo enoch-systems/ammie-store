@@ -331,7 +331,7 @@ export function CartDrawer() {
           <div className="absolute inset-0" onClick={closeCheckout} />
 
           <div
-            className="relative bg-card rounded-2xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto boty-shadow border border-border/50 animate-in fade-in zoom-in-95 duration-200"
+            className="relative bg-card rounded-2xl sm:rounded-3xl w-full max-w-lg max-h-[90dvh] overflow-y-auto boty-shadow border border-border/50 animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
