@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Plus, X, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Header } from "@/components/boty/header"
@@ -28,10 +28,19 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
+  const descriptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setMounted(true)
     fetchProducts()
+  }, [])
+
+  // Set a distinct document title for the admin page
+  useEffect(() => {
+    document.title = "Admin Dashboard — Ammie N"
+    return () => {
+      document.title = "Ammie N — Premium Hair & Extensions"
+    }
   }, [])
 
   // ── Real-time subscription ──────────────────────────────────────────
@@ -81,20 +90,31 @@ export default function AdminPage() {
   }, [])
 
   const updateField = (field: string, value: string) => {
-    setForm((prev) => {
-      const updated = { ...prev, [field]: value }
-      
-      // Auto-generate description when product name changes
-      if (field === "name" && value.trim()) {
-        const autoDescription = getProductDescription(value)
-        // Only auto-fill if description is empty or was previously auto-generated
-        if (!prev.description || prev.description.includes("Discover our stunning")) {
-          updated.description = autoDescription
-        }
+    // Auto-capitalize the first letter of the product name
+    let processedValue = value
+    if (field === "name") {
+      processedValue = value.charAt(0).toUpperCase() + value.slice(1)
+    }
+
+    setForm((prev) => ({ ...prev, [field]: processedValue }))
+
+    // Debounce auto-description generation: wait 4 seconds after the user
+    // stops typing the product name before generating the description.
+    if (field === "name") {
+      if (descriptionTimerRef.current) {
+        clearTimeout(descriptionTimerRef.current)
       }
-      
-      return updated
-    })
+      descriptionTimerRef.current = setTimeout(() => {
+        setForm((prev) => {
+          if (!prev.name.trim()) return prev
+          // Only auto-fill if description is empty or was previously auto-generated
+          if (!prev.description || prev.description.includes("Discover our stunning")) {
+            return { ...prev, description: getProductDescription(prev.name) }
+          }
+          return prev
+        })
+      }, 4000)
+    }
   }
 
   const handleRegenerateDescription = () => {
