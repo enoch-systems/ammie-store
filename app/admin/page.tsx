@@ -107,11 +107,7 @@ export default function AdminPage() {
       descriptionTimerRef.current = setTimeout(() => {
         setForm((prev) => {
           if (!prev.name.trim()) return prev
-          // Only auto-fill if description is empty or was previously auto-generated
-          if (!prev.description || prev.description.includes("Discover our stunning")) {
-            return { ...prev, description: getProductDescription(prev.name) }
-          }
-          return prev
+          return { ...prev, description: getProductDescription(prev.name) }
         })
       }, 4000)
     }
