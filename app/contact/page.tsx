@@ -26,14 +26,6 @@ export default function ContactPage() {
 
           {/* Social Links */}
           <div className="max-w-3xl mx-auto mb-16">
-            <div className="text-center mb-10">
-              <h2 className="font-serif text-2xl md:text-3xl text-foreground mb-2">
-                Follow Us
-              </h2>
-              <p className="text-muted-foreground">
-                Connect with us on social media for the latest updates and styles.
-              </p>
-            </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {[
@@ -86,7 +78,7 @@ export default function ContactPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
-                href="tel:+2341234567890"
+                href="tel:+2349031560905"
                 className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-background/80 boty-shadow border border-border"
               >
                 <Phone className="w-4 h-4" />

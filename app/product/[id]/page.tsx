@@ -24,7 +24,7 @@ export default function ProductPage() {
   const params = useParams()
   const router = useRouter()
   const productId = params.id as string
-  const { addItem } = useCart()
+  const { addItem, setIsOpen } = useCart()
   
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
@@ -147,6 +147,19 @@ export default function ProductPage() {
       image: getOptimizedProductImage(realImages[0] || "/placeholder.svg", "card")
     })
     setTimeout(() => setIsAdded(false), 2000)
+  }
+
+  const handleBuyNow = () => {
+    if (!product) return
+    // Add to cart first
+    addItem({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: getOptimizedProductImage(realImages[0] || "/placeholder.svg", "card")
+    })
+    // Then open the cart drawer so they can checkout
+    setIsOpen(true)
   }
 
   const goToPrevImage = () => {
@@ -461,6 +474,7 @@ export default function ProductPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={handleBuyNow}
                   className="flex-1 inline-flex items-center justify-center gap-2 bg-transparent border border-primary text-primary px-8 py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-primary hover:text-primary-foreground cursor-pointer"
                 >
                   Buy Now

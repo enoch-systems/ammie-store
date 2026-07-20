@@ -178,7 +178,7 @@ export function CartDrawer() {
       clearCart()
       setShowCheckoutModal(false)
 
-      router.push(`/invoice/${data.id}?token=${data.access_token}`)
+      router.push(`/invoice/${data.id}?token=${data.access_token}&fresh=1`)
     } catch (err: any) {
       console.error("Checkout error:", err)
       setError(err?.message || "Something went wrong. Please try again.")

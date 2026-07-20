@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
-import { Printer, Copy, Check, Clock, ChevronRight } from "lucide-react"
+import { Printer, Copy, Check, Clock, ChevronRight, Loader2 } from "lucide-react"
 import { createClientBrowser } from "@/lib/supabase/client"
 
 // ── Types ──
@@ -50,6 +50,14 @@ function formatTime(iso: string) {
   })
 }
 
+// ── Vendor WhatsApp config ──
+
+const VENDOR_PHONE = "2349031560905"
+
+function buildWhatsAppMessage(customerName: string, url: string) {
+  return `Hi, I'm ${customerName}, I placed an order in your store\n\n${url}`
+}
+
 // ── Component ──
 
 export default function InvoicePage() {
@@ -58,8 +66,12 @@ export default function InvoicePage() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState("")
-  const [invoiceUrl, setInvoiceUrl] = useState("")
   const [invoiceUrlWithToken, setInvoiceUrlWithToken] = useState("")
+  const [isFreshOrder, setIsFreshOrder] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [modalVisible, setModalVisible] = useState(false)
+  const [sending, setSending] = useState(false)
+  const whatsappOpened = useRef(false)
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -67,6 +79,9 @@ export default function InvoicePage() {
         const client = createClientBrowser()
         const urlParams = new URLSearchParams(window.location.search)
         const token = urlParams.get("token")
+        const fresh = urlParams.get("fresh")
+
+        setIsFreshOrder(fresh === "1")
 
         let query = client.from("orders").select("*")
         if (token) {
@@ -94,26 +109,55 @@ export default function InvoicePage() {
       const baseUrl = order.access_token
         ? `${window.location.origin}/invoice/${order.id}?token=${order.access_token}`
         : window.location.href
-      setInvoiceUrl(window.location.href)
       setInvoiceUrlWithToken(baseUrl)
     }
   }, [order])
 
-  // Auto-open WhatsApp with vendor after invoice loads
+  // Show locked modal for fresh orders after invoice loads
   useEffect(() => {
-    if (order) {
-      const vendorPhone = "2349031560905"
-      const url = `${window.location.origin}/invoice/${order.id}?token=${order.access_token}`
-      const vendorMessage = `Hey! I just made an order, check it out 📋\n\n${url}`
-      const vendorWhatsAppUrl = `https://wa.me/${vendorPhone}?text=${encodeURIComponent(vendorMessage)}`
-      
+    if (order && isFreshOrder && !whatsappOpened.current) {
       const timer = setTimeout(() => {
-        window.open(vendorWhatsAppUrl, "_blank", "noopener,noreferrer")
-      }, 1000)
-      
-      return () => clearTimeout(timer)
+        setShowModal(true)
+        requestAnimationFrame(() => setModalVisible(true))
+        document.body.style.overflow = "hidden"
+      }, 500)
+      return () => {
+        clearTimeout(timer)
+        document.body.style.overflow = ""
+      }
     }
-  }, [order])
+  }, [order, isFreshOrder])
+
+  // Cleanup body overflow on unmount
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [])
+
+  const handleProceed = () => {
+    if (whatsappOpened.current) return
+    setSending(true)
+
+    if (!order) return
+
+    const url = `${window.location.origin}/invoice/${order.id}?token=${order.access_token}`
+    const message = buildWhatsAppMessage(order.customer_name, url)
+    const whatsappUrl = `https://wa.me/${VENDOR_PHONE}?text=${encodeURIComponent(message)}`
+
+    whatsappOpened.current = true
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+
+    // Close modal after opening WhatsApp
+    setTimeout(() => {
+      setModalVisible(false)
+      setTimeout(() => {
+        setShowModal(false)
+        setSending(false)
+        document.body.style.overflow = ""
+      }, 300)
+    }, 500)
+  }
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(invoiceUrlWithToken)
@@ -125,21 +169,15 @@ export default function InvoicePage() {
     window.print()
   }
 
-  const whatsappMessage = order
-    ? `🧾 *INVOICE — Ammie N*
-━━━━━━━━━━━━━━━━━
-*Order:* #${order.id.slice(0, 8).toUpperCase()}
-*Date:* ${formatDate(order.created_at)} at ${formatTime(order.created_at)}
-*Customer:* ${order.customer_name}
-━━━━━━━━━━━━━━━━━
-${order.items.map((i) => `• ${i.name} × ${i.quantity} — ₦${(i.price * i.quantity).toLocaleString()}`).join("\n")}
-━━━━━━━━━━━━━━━━━
-*Total:* ₦${order.total.toLocaleString()}
-━━━━━━━━━━━━━━━━━
-📎 ${invoiceUrlWithToken}`
-    : ""
-
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`
+  // Vendor WhatsApp URL for the share button (always available)
+  const vendorWhatsAppUrl = order
+    ? `https://wa.me/${VENDOR_PHONE}?text=${encodeURIComponent(
+        buildWhatsAppMessage(
+          order.customer_name,
+          `${window.location.origin}/invoice/${order.id}?token=${order.access_token}`
+        )
+      )}`
+    : "#"
 
   // ── Loading ──
 
@@ -186,6 +224,75 @@ ${order.items.map((i) => `• ${i.name} × ${i.quantity} — ₦${(i.price * i.q
 
   return (
     <>
+      {/* ─── Locked Modal (fresh order only) ─── */}
+      {showModal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          {/* Backdrop — blocks all interaction */}
+          <div
+            className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300 ${
+              modalVisible ? "opacity-100" : "opacity-0"
+            }`}
+          />
+
+          {/* Modal Card */}
+          <div
+            className={`relative bg-white rounded-2xl max-w-sm w-full boty-shadow border border-neutral-200/50 transition-all duration-300 ${
+              modalVisible ? "opacity-100 scale-100" : "opacity-0 scale-75"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-8 text-center">
+              {/* Icon */}
+              <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                <svg
+                  className="w-8 h-8 text-emerald-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 12v4m0 0l-2-2m2 2l2-2"
+                  />
+                </svg>
+              </div>
+
+              {/* Title */}
+              <h2 className="text-xl font-bold text-neutral-900 mb-2">
+                Send invoice to vendor
+              </h2>
+              <p className="text-sm text-neutral-500 mb-8 leading-relaxed">
+                Share this invoice with the vendor via WhatsApp so they can process your order.
+              </p>
+
+              {/* Proceed Button */}
+              <button
+                type="button"
+                onClick={handleProceed}
+                disabled={sending}
+                className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Opening WhatsApp...
+                  </>
+                ) : (
+                  "Proceed"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── Action Bar (hidden when printing) ─── */}
       <div className="print:hidden fixed top-0 left-0 right-0 bg-neutral-900 text-white z-[9999] backdrop-blur-sm">
         <div className="max-w-[860px] mx-auto px-5 sm:px-6 py-3.5">
@@ -218,7 +325,7 @@ ${order.items.map((i) => `• ${i.name} × ${i.quantity} — ₦${(i.price * i.q
                 )}
               </button>
               <a
-                href={whatsappUrl}
+                href={vendorWhatsAppUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-medium transition-colors"
@@ -393,11 +500,6 @@ ${order.items.map((i) => `• ${i.name} × ${i.quantity} — ₦${(i.price * i.q
               <p className="text-xs text-neutral-400 max-w-sm mx-auto leading-relaxed">
                 Wear confidence. Naturally you. &mdash; Premium human hair, wigs & extensions.
               </p>
-              <div className="mt-5 flex items-center justify-center gap-6 text-[11px] text-neutral-400">
-                <span>Lagos, NG</span>
-                <span className="w-1 h-1 rounded-full bg-neutral-300" />
-                <span>ammienstore.com</span>
-              </div>
             </div>
 
           </div>
