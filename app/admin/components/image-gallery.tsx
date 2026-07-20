@@ -3,7 +3,7 @@
 import { useState, useRef } from "react"
 import Image from "next/image"
 import { Plus, X, Upload, Camera } from "lucide-react"
-import { uploadToCloudinary } from "@/lib/cloudinary"
+import { uploadToCloudinary, transformImageUrl } from "@/lib/cloudinary"
 
 interface ImageGalleryProps {
   images: string[]
@@ -20,87 +20,23 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
   const [showMultipleUpload, setShowMultipleUpload] = useState(false)
   const singleFileRef = useRef<HTMLInputElement>(null)
   const multipleFileRef = useRef<HTMLInputElement>(null)
-  // Captures which image slot ("main" = 0, or a thumbnail index) a single-file
-  // upload is targeting. Replaces the old setTimeout + data-attribute hack,
-  // which was the source of the main image not updating after upload.
   const pendingSourceIndex = useRef<number | null>(null)
 
-  const compressImage = async (file: File): Promise<File> => {
-    // Always run images through resize + compression before upload, rather
-    // than only compressing files over a large threshold. Most phone
-    // photos are 3-8MB at resolutions far higher than needed for a product
-    // gallery — sending those straight to Cloudinary wastes upload
-    // bandwidth, storage, and delivery bandwidth on every page view.
-    const maxDimension = 1600 // plenty sharp for the on-page gallery/zoom
-    const targetSize = 400 * 1024 // aim for ~400KB per image
+  /**
+   * Image preloader: starts downloading the adjacent images in the
+   * background as soon as any upload completes, so the next click on
+   * a thumbnail swaps instantly instead of waiting 1-2 seconds.
+   */
+  const preloadImage = (url: string) => {
+    if (!url) return
+    const img = new window.Image()
+    // Use the resized version so the preload is as fast as possible
+    img.src = transformImageUrl(url, "w_800", "f_auto", "q_auto")
+  }
 
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.readAsDataURL(file)
-      reader.onload = (event) => {
-        const img = new window.Image()
-        img.src = event.target?.result as string
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          let quality = 0.85
-          let scale = 1
-
-          const width = img.width
-          const height = img.height
-
-          if (width > maxDimension || height > maxDimension) {
-            if (width > height) {
-              scale = maxDimension / width
-            } else {
-              scale = maxDimension / height
-            }
-          }
-
-          canvas.width = Math.round(width * scale)
-          canvas.height = Math.round(height * scale)
-
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            reject(new Error('Failed to get canvas context'))
-            return
-          }
-
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
-          const compress = () => {
-            canvas.toBlob(
-              (blob) => {
-                if (!blob) {
-                  reject(new Error('Failed to compress image'))
-                  return
-                }
-
-                const compressedFile = new File([blob], file.name, {
-                  type: 'image/jpeg',
-                  lastModified: Date.now()
-                })
-
-                if (compressedFile.size > targetSize && quality > 0.5) {
-                  quality -= 0.1
-                  compress()
-                  return
-                }
-
-                // Guard against the rare case where compression produced a
-                // larger file than the original (can happen with already
-                // heavily-compressed small source images) — keep whichever
-                // is smaller.
-                resolve(compressedFile.size < file.size ? compressedFile : file)
-              },
-              'image/jpeg',
-              quality
-            )
-          }
-
-          compress()
-        }
-        reader.onerror = () => reject(new Error('Failed to read file'))
-      }
+  const preloadAllImages = (imgs: string[], skipIndex: number) => {
+    imgs.forEach((url, i) => {
+      if (i !== skipIndex && url) preloadImage(url)
     })
   }
 
@@ -112,8 +48,6 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
 
     setUploadError(null)
 
-    // Keep files in the order they were selected. For multiple uploads,
-    // only take the first 4 — extras are ignored even if more were selected.
     let filesArray = Array.from(files)
     let truncatedNotice: string | null = null
     if (isMultiple && filesArray.length > maxMultiple) {
@@ -121,21 +55,10 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
       truncatedNotice = `Only the first ${maxMultiple} images were used — up to ${maxMultiple} images can be added at once.`
     }
 
-    const processedFiles: File[] = []
-
-    for (let i = 0; i < filesArray.length; i++) {
-      const file = filesArray[i]
+    // Validate file types before uploading
+    for (const file of filesArray) {
       if (!allowedTypes.includes(file.type)) {
         setUploadError('Invalid file type. Please upload JPG, PNG, or WebP.')
-        return
-      }
-
-      try {
-        const processedFile = await compressImage(file)
-        processedFiles.push(processedFile)
-      } catch (error) {
-        console.error('Error processing image:', error)
-        setUploadError('Failed to process image. Please try another file.')
         return
       }
     }
@@ -144,19 +67,17 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
       setUploading(true)
       setShowUploadOptions(null)
       setShowMultipleUpload(false)
-      setUploadProgress({ current: 0, total: processedFiles.length })
+      setUploadProgress({ current: 0, total: filesArray.length })
 
-      const uploadedUrls: string[] = []
-
-      for (let i = 0; i < processedFiles.length; i++) {
-        setUploadProgress({ current: i + 1, total: processedFiles.length })
-        const url = await uploadToCloudinary(processedFiles[i])
-        uploadedUrls.push(url)
-      }
+      // Upload ALL files in parallel — much faster than one-at-a-time
+      const uploadedUrls: string[] = await Promise.all(
+        filesArray.map(async (file, i) => {
+          setUploadProgress({ current: i + 1, total: filesArray.length })
+          return uploadToCloudinary(file)
+        })
+      )
 
       if (isMultiple) {
-        // Slots 1..(images.length - 1) are the additional-image slots
-        // (index 0 is the main image, mirrored as thumbnail #1 in the UI).
         let uploadIndex = 1
         for (const url of uploadedUrls) {
           if (uploadIndex < images.length) {
@@ -164,25 +85,40 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
             uploadIndex++
           }
         }
-        // If the main image slot is still empty, use the first uploaded
-        // image as the main image so the main box is never left blank.
         if (!images[0] && uploadedUrls[0]) {
           onUpdateImage(0, uploadedUrls[0])
         }
       } else {
         if (sourceIndex === 0) {
-          // Main image slot. Thumbnail #1 is a live mirror of this value in
-          // the render below, so there's no separate slot to keep in sync.
           onUpdateImage(0, uploadedUrls[0])
         } else if (sourceIndex !== null && sourceIndex > 0) {
           onUpdateImage(sourceIndex, uploadedUrls[0])
-          // If the main slot is empty, use this image as the main image
-          // too, so it's never left blank.
           if (!images[0]) {
             onUpdateImage(0, uploadedUrls[0])
           }
         }
       }
+
+      // Preload all images so thumbnail switching is instant
+      const allImages = [...images]
+      uploadedUrls.forEach((url, i) => {
+        if (isMultiple) {
+          const slot = i + 1
+          if (slot < allImages.length) allImages[slot] = url
+        } else if (sourceIndex !== null) {
+          allImages[sourceIndex] = url
+          if (sourceIndex === 0 && !images[0] && uploadedUrls[0]) {
+            // already set above
+          }
+        }
+      })
+      if (!isMultiple && sourceIndex !== null) {
+        allImages[sourceIndex] = uploadedUrls[0]
+        if (sourceIndex !== 0 && !allImages[0] && uploadedUrls[0]) {
+          allImages[0] = uploadedUrls[0]
+        }
+      }
+      preloadAllImages(allImages, selectedImageIndex)
 
       setUploadProgress(null)
       setUploadError(truncatedNotice)
@@ -206,7 +142,6 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
     onUpdateImage(index, "")
   }
 
-  // The additional (non-main) image slots — everything after index 0.
   const additionalImages = images.slice(1)
 
   return (
@@ -221,7 +156,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
             {images[0] ? (
               <>
                 <Image
-                  src={images[0]}
+                  src={transformImageUrl(images[0], "w_800", "f_auto", "q_auto")}
                   alt="Product preview"
                   fill
                   className="object-cover"
@@ -261,12 +196,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
           )}
         </div>
 
-        {/* Thumbnails — 5 total. The first one mirrors the main image
-            (same src, clicking/deleting it acts on slot 0). The next 4
-            are the distinct additional-image slots (indices 1-4). This
-            column's natural height (5 thumbnails + gaps) is what the
-            main image box stretches to match via items-stretch + h-full
-            above. */}
+        {/* Thumbnails */}
         <div className="flex flex-col gap-4 shrink-0">
           {/* Thumbnail #1 — mirror of the main image */}
           <div
@@ -288,7 +218,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
             {images[0] ? (
               <>
                 <Image
-                  src={images[0]}
+                  src={transformImageUrl(images[0], "w_150", "f_auto", "q_auto")}
                   alt="Thumbnail 1 (main image)"
                   fill
                   className="object-cover"
@@ -306,7 +236,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
             )}
           </div>
 
-          {/* Thumbnails #2-5 — the 4 additional image slots */}
+          {/* Thumbnails #2-5 */}
           {additionalImages.map((img, index) => (
             <div
               key={index + 1}
@@ -328,7 +258,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
               {img ? (
                 <>
                   <Image
-                    src={img}
+                    src={transformImageUrl(img, "w_150", "f_auto", "q_auto")}
                     alt={`Thumbnail ${index + 2}`}
                     fill
                     className="object-cover"
@@ -349,9 +279,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
         </div>
       </div>
 
-      {/* Add Multiple — deliberately outside the items-stretch row above, so
-          it never factors into the main image's height. It's just aligned
-          under the thumbnail column via the same fixed width + right-justify. */}
+      {/* Add Multiple Button */}
       <div className="flex justify-end">
         <button
           type="button"
@@ -402,8 +330,6 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
               <button
                 type="button"
                 onClick={() => {
-                  // Capture the target slot synchronously — no DOM attribute
-                  // round-trip, no race with the change event.
                   pendingSourceIndex.current = showUploadOptions
                   setShowUploadOptions(null)
                   singleFileRef.current?.click()

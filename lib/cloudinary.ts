@@ -29,26 +29,25 @@ export async function uploadToCloudinary(file: File): Promise<string> {
   }
 
   const data = await response.json()
-  return withAutoOptimization(data.secure_url)
+  return transformImageUrl(data.secure_url)
 }
 
 /**
- * Inserts Cloudinary's f_auto,q_auto delivery transformation into a
- * secure_url. This doesn't change what's stored — the original upload is
- * untouched — it just tells Cloudinary's CDN to serve each request in the
- * best format for that visitor's browser (WebP/AVIF where supported,
- * falling back to JPEG) at an automatically chosen quality level. The
- * transformed variant is generated once and cached at the edge, so this
- * meaningfully cuts delivery bandwidth on every subsequent page view at no
- * extra cost.
+ * Insert Cloudinary transformation parameters into a URL.
+ * Supports f_auto, q_auto, width, and any other valid Cloudinary transforms.
+ * 
+ * @param url - The base Cloudinary URL (from upload)
+ * @param transforms - One or more transformation strings, e.g. "w_800", "f_auto,q_auto"
+ * @returns The URL with transformations inserted after /upload/
  */
-function withAutoOptimization(url: string): string {
+export function transformImageUrl(url: string, ...transforms: string[]): string {
   const uploadMarker = '/upload/'
   const markerIndex = url.indexOf(uploadMarker)
   if (markerIndex === -1) return url
 
+  const transformStr = transforms.join(',')
   const insertAt = markerIndex + uploadMarker.length
-  return `${url.slice(0, insertAt)}f_auto,q_auto/${url.slice(insertAt)}`
+  return `${url.slice(0, insertAt)}${transformStr}/${url.slice(insertAt)}`
 }
 
 export async function deleteFromCloudinary(imageUrl: string): Promise<void> {
