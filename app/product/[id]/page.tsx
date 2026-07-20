@@ -35,6 +35,7 @@ export default function ProductPage() {
   const [openAccordion, setOpenAccordion] = useState<AccordionSection | null>("details")
   const [isAdded, setIsAdded] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [preloaded, setPreloaded] = useState(false)
 
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
@@ -119,7 +120,32 @@ export default function ProductPage() {
   useEffect(() => {
     window.scrollTo(0, 0)
     setSelectedImageIndex(0)
+    setPreloaded(false)
   }, [productId])
+
+  // Preload ALL product images in the background as soon as the product
+  // loads, so clicking any thumbnail swaps instantly — no network wait.
+  useEffect(() => {
+    if (!product || preloaded) return
+    const imgs = product.images.filter((img) => img && img.trim() !== "")
+    if (imgs.length === 0) return
+
+    let loaded = 0
+    imgs.forEach((url) => {
+      const img = new window.Image()
+      // Use the same w_800 resolution the main display will request,
+      // so the browser cache serves the thumbnail click immediately.
+      img.src = getOptimizedProductImage(url, "detail")
+      img.onload = () => {
+        loaded++
+        if (loaded === imgs.length) setPreloaded(true)
+      }
+      img.onerror = () => {
+        loaded++
+        if (loaded === imgs.length) setPreloaded(true)
+      }
+    })
+  }, [product, preloaded])
 
   const realImages = product
     ? product.images.filter((img) => img && img.trim() !== "")
