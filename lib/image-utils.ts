@@ -1,10 +1,13 @@
 /**
- * Cloudinary image optimization utilities.
+ * Cloudinary image/video optimization utilities.
  *
  * Applies `f_auto,q_auto,w_XXX` transforms to any Cloudinary URL so that
  * images are served in the best format (WebP/AVIF) at the correct resolution.
+ * For video URLs, returns the poster frame instead (static image from video).
  * Non-Cloudinary URLs are returned unchanged.
  */
+
+import { isVideoUrl, getVideoPosterUrl } from "./cloudinary"
 
 const CLOUDINARY_BASE = "res.cloudinary.com"
 
@@ -53,6 +56,9 @@ export function getOptimizedImageUrl(url: string, width?: number): string {
 
 /**
  * Convenience presets for common image sizes in the app.
+ * 
+ * If the URL is a video, returns the poster frame URL instead so it works
+ * safely with next/image and any image-only components.
  */
 export function getOptimizedProductImage(
   url: string,
@@ -64,5 +70,39 @@ export function getOptimizedProductImage(
     detail: 1200,
     full: 2000,
   }
+  
+  // If it's a video URL, return a video poster frame instead
+  if (isVideoUrl(url)) {
+    const poster = getVideoPosterUrl(url)
+    return postProcessUrl(poster, widthMap[size])
+  }
+  
   return getOptimizedImageUrl(url, widthMap[size])
+}
+
+/**
+ * Internal helper that applies width/f_auto/q_auto to a URL that's already
+ * had its resource type handled (e.g. video poster frame).
+ */
+function postProcessUrl(url: string, width: number): string {
+  if (!url || url.startsWith("/")) return url
+  if (!url.includes(CLOUDINARY_BASE)) return url
+
+  const uploadMarker = "/upload/"
+  const markerIndex = url.indexOf(uploadMarker)
+  if (markerIndex === -1) return url
+
+  const insertAt = markerIndex + uploadMarker.length
+  const afterUpload = url.slice(insertAt)
+  const existingTransforms = afterUpload.match(/^[^/]*,/)
+
+  const transforms = [`w_${width}`, "f_auto", "q_auto"]
+  const transformStr = transforms.join(",") + "/"
+
+  if (existingTransforms) {
+    const existingEnd = existingTransforms.index! + existingTransforms[0].length
+    return url.slice(0, insertAt) + transformStr + afterUpload.slice(existingEnd)
+  }
+
+  return url.slice(0, insertAt) + transformStr + afterUpload
 }

@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check } from "lucide-react"
+import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play } from "lucide-react"
 import { Header } from "@/components/boty/header"
 import { Footer } from "@/components/boty/footer"
 import { useCart } from "@/components/boty/cart-context"
 import { supabase, type Product } from "@/lib/supabase"
 import { getOptimizedProductImage } from "@/lib/image-utils"
+import { isVideoUrl, getOptimizedVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary"
 
 const benefits = [
   { icon: Leaf, label: "100% Human Hair" },
@@ -125,24 +126,25 @@ export default function ProductPage() {
 
   // Preload ALL product images in the background as soon as the product
   // loads, so clicking any thumbnail swaps instantly — no network wait.
+  // Video URLs are skipped — they get a poster frame instead.
   useEffect(() => {
     if (!product || preloaded) return
     const imgs = product.images.filter((img) => img && img.trim() !== "")
     if (imgs.length === 0) return
 
     let loaded = 0
+    const total = imgs.length
     imgs.forEach((url) => {
+      // For video URLs, preload the poster frame (static image) instead
       const img = new window.Image()
-      // Use the same w_800 resolution the main display will request,
-      // so the browser cache serves the thumbnail click immediately.
       img.src = getOptimizedProductImage(url, "detail")
       img.onload = () => {
         loaded++
-        if (loaded === imgs.length) setPreloaded(true)
+        if (loaded === total) setPreloaded(true)
       }
       img.onerror = () => {
         loaded++
-        if (loaded === imgs.length) setPreloaded(true)
+        if (loaded === total) setPreloaded(true)
       }
     })
   }, [product, preloaded])
@@ -338,14 +340,45 @@ export default function ProductPage() {
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
                 >
-                  <Image
-                    src={getOptimizedProductImage(realImages[selectedImageIndex] || "/placeholder.svg", "detail")}
-                    alt={`${product.name} - Image ${selectedImageIndex + 1}`}
-                    fill
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    className="object-cover boty-transition"
-                    priority
-                  />
+                  {isVideoUrl(realImages[selectedImageIndex] || "") ? (
+                    // Video main display — poster frame + play overlay
+                    <div className="relative w-full h-full">
+                      <Image
+                        src={getOptimizedProductImage(realImages[selectedImageIndex], "detail")}
+                        alt={`${product.name} - Video ${selectedImageIndex + 1}`}
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 50vw"
+                        className="object-cover"
+                        priority
+                      />
+                      {/* Play button overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 boty-transition cursor-pointer group/video">
+                        <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg group-hover/video:scale-110 boty-transition">
+                          <Play className="w-7 h-7 text-foreground ml-0.5" fill="currentColor" />
+                        </div>
+                      </div>
+                      {/* Actual video element (hidden until click) */}
+                      <video
+                        className="absolute inset-0 w-full h-full object-cover"
+                        preload="none"
+                        playsInline
+                        controls
+                        loop
+                        muted
+                      >
+                        <source src={getOptimizedVideoUrl(realImages[selectedImageIndex])} type="video/mp4" />
+                      </video>
+                    </div>
+                  ) : (
+                    <Image
+                      src={getOptimizedProductImage(realImages[selectedImageIndex] || "/placeholder.svg", "detail")}
+                      alt={`${product.name} - Image ${selectedImageIndex + 1}`}
+                      fill
+                      sizes="(max-width: 1024px) 100vw, 50vw"
+                      className="object-cover boty-transition"
+                      priority
+                    />
+                  )}
                 </div>
 
                 {realImages.length > 0 && (

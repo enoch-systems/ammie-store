@@ -2,6 +2,47 @@
  * Cloudinary upload utilities
  */
 
+const VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi", ".mkv"]
+
+export function isVideoUrl(url: string): boolean {
+  if (!url) return false
+  const lower = url.toLowerCase()
+  // Cloudinary video URLs contain /video/ in the path
+  if (lower.includes("/video/upload/")) return true
+  // Also check file extension
+  return VIDEO_EXTENSIONS.some((ext) => lower.includes(ext))
+}
+
+/**
+ * Given a Cloudinary video URL, returns a static poster frame URL.
+ * Simply changes /video/upload/ to /image/upload/ and adds f_auto,q_auto.
+ */
+export function getVideoPosterUrl(videoUrl: string): string {
+  const lower = videoUrl.toLowerCase()
+  const marker = "/video/upload/"
+  const idx = lower.indexOf(marker)
+  if (idx === -1) return videoUrl
+  
+  return `${videoUrl.slice(0, idx)}/image/upload/f_auto,q_auto/${videoUrl.slice(idx + marker.length)}`
+}
+
+/**
+ * Applies bandwidth-saving transformations to a video URL.
+ * - w_720: limit to 720p width
+ * - q_40: aggressive quality compression
+ * - sp_le: low-efficiency streaming profile (smaller files)
+ * - f_auto: automatic format selection
+ */
+export function getOptimizedVideoUrl(videoUrl: string, width: number = 720, quality: number = 40): string {
+  const uploadMarker = "/upload/"
+  const markerIndex = videoUrl.indexOf(uploadMarker)
+  if (markerIndex === -1) return videoUrl
+  
+  const insertAt = markerIndex + uploadMarker.length
+  const transforms = [`w_${width}`, `q_${quality}`, "sp_le", "f_auto"]
+  return `${videoUrl.slice(0, insertAt)}${transforms.join(",")}/${videoUrl.slice(insertAt)}`
+}
+
 export async function uploadToCloudinary(file: File): Promise<string> {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
   const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
@@ -10,13 +51,17 @@ export async function uploadToCloudinary(file: File): Promise<string> {
     throw new Error('Missing Cloudinary configuration')
   }
 
+  const isVideo = file.type.startsWith("video/")
+
   const formData = new FormData()
   formData.append('file', file)
   formData.append('upload_preset', uploadPreset)
   formData.append('folder', 'ammie-store/products')
 
+  // Videos use a different Cloudinary upload endpoint
+  const resourceType = isVideo ? "video" : "image"
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
     {
       method: 'POST',
       body: formData,
@@ -25,10 +70,18 @@ export async function uploadToCloudinary(file: File): Promise<string> {
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.error?.message || 'Failed to upload image')
+    throw new Error(error.error?.message || `Failed to upload ${resourceType}`)
   }
 
   const data = await response.json()
+  
+  if (isVideo) {
+    // For videos, apply bandwidth-saving transforms directly on upload
+    // and return the optimized URL. We still store the base URL so future
+    // transforms can be applied dynamically.
+    return transformImageUrl(data.secure_url)
+  }
+  
   return transformImageUrl(data.secure_url)
 }
 

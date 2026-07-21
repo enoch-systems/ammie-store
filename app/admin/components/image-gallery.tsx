@@ -2,8 +2,8 @@
 
 import { useState, useRef } from "react"
 import Image from "next/image"
-import { Plus, X, Upload, Camera } from "lucide-react"
-import { uploadToCloudinary, transformImageUrl } from "@/lib/cloudinary"
+import { Plus, X, Upload, Camera, Play } from "lucide-react"
+import { uploadToCloudinary, transformImageUrl, isVideoUrl, getVideoPosterUrl, getOptimizedVideoUrl } from "@/lib/cloudinary"
 
 interface ImageGalleryProps {
   images: string[]
@@ -56,9 +56,26 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
     }
 
     // Validate file types before uploading
+    // Slot 0 (main image) accepts both images AND videos
+    // Slots 1-4 only accept images
     for (const file of filesArray) {
-      if (!allowedTypes.includes(file.type)) {
-        setUploadError('Invalid file type. Please upload JPG, PNG, or WebP.')
+      const isVideoFile = file.type.startsWith("video/")
+      const isImageFile = allowedTypes.includes(file.type)
+      
+      if (isVideoFile) {
+        // Only slot 0 and multiple uploads can contain videos
+        // For multiple upload, skip video files silently
+        if (!isMultiple && sourceIndex !== 0) {
+          setUploadError('Videos can only be added as the main image (first slot).')
+          return
+        }
+        if (isMultiple) {
+          // Skip video files in multiple upload — only images allowed
+          setUploadError('Multiple upload only supports images. Use single upload for videos.')
+          return
+        }
+      } else if (!isImageFile) {
+        setUploadError('Invalid file type. Please upload JPG, PNG, WebP, or MP4/WebM/MOV for video.')
         return
       }
     }
@@ -154,28 +171,58 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
             onClick={() => setShowUploadOptions(0)}
           >
             {images[0] ? (
-              <>
-                <Image
-                  src={transformImageUrl(images[0], "w_800", "f_auto", "q_auto")}
-                  alt="Product preview"
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 boty-transition flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">Change Image</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => handleDelete(0, e)}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/80 flex items-center justify-center text-white hover:bg-red-500 boty-transition cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </>
+              isVideoUrl(images[0]) ? (
+                <>
+                  {/* Video preview — show poster frame + play icon */}
+                  <Image
+                    src={transformImageUrl(getVideoPosterUrl(images[0]), "w_800", "f_auto", "q_auto")}
+                    alt="Product video preview"
+                    fill
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                      <Play className="w-5 h-5 text-foreground ml-0.5" fill="currentColor" />
+                    </div>
+                  </div>
+                  <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+                    VIDEO
+                  </div>
+                  <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 boty-transition flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">Change Video</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(0, e)}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/80 flex items-center justify-center text-white hover:bg-red-500 boty-transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Image
+                    src={transformImageUrl(images[0], "w_800", "f_auto", "q_auto")}
+                    alt="Product preview"
+                    fill
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 boty-transition flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">Change Image</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(0, e)}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/80 flex items-center justify-center text-white hover:bg-red-500 boty-transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              )
             ) : (
               <div className="flex flex-col items-center gap-2 text-muted-foreground p-8 hover:text-foreground boty-transition">
                 <Plus className="w-10 h-10" />
-                <span className="text-sm">Click to add an image</span>
+                <span className="text-sm">Click to add image or video</span>
               </div>
             )}
           </div>
@@ -308,25 +355,32 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
       {showUploadOptions !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUploadOptions(null)}>
           <div className="bg-card p-6 rounded-2xl boty-shadow max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-serif text-lg text-foreground mb-4">Add Image</h3>
+            <h3 className="font-serif text-lg text-foreground mb-4">
+              {showUploadOptions === 0 ? "Add Image or Video" : "Add Image"}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4 -mt-2">
+              {showUploadOptions === 0 ? "Slot 1 accepts images and videos (MP4, WebM, MOV)" : "Slots 2-5 accept images only"}
+            </p>
             <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  const sourceIdx = showUploadOptions
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.accept = 'image/*'
-                  input.capture = 'environment'
-                  input.onchange = (e) => handleFileUpload((e.target as HTMLInputElement).files, sourceIdx, false)
-                  input.click()
-                  setShowUploadOptions(null)
-                }}
-                className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 cursor-pointer"
-              >
-                <Camera className="w-4 h-4" />
-                Take Photo
-              </button>
+              {showUploadOptions === 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sourceIdx = showUploadOptions
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'image/*,video/mp4,video/webm,video/quicktime'
+                    input.capture = 'environment'
+                    input.onchange = (e) => handleFileUpload((e.target as HTMLInputElement).files, sourceIdx, false)
+                    input.click()
+                    setShowUploadOptions(null)
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  Take Photo or Video
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -355,7 +409,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowMultipleUpload(false)}>
           <div className="bg-card p-6 rounded-2xl boty-shadow max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-serif text-lg text-foreground mb-2">Add Multiple Images</h3>
-            <p className="text-sm text-muted-foreground mb-4">Select up to 4 images to add as thumbnails</p>
+            <p className="text-sm text-muted-foreground mb-4">Select up to 4 images to add as thumbnails (videos not supported for multiple upload)</p>
             <div className="flex flex-col gap-3">
               <button
                 type="button"
@@ -401,7 +455,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
       <input
         ref={singleFileRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp"
+        accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
         onChange={(e) => {
           const sourceIdx = pendingSourceIndex.current ?? 0
           handleFileUpload(e.target.files, sourceIdx, false)
