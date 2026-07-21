@@ -128,32 +128,28 @@ export function getSafeVideoUrl(videoUrl: string): string {
     
     // If it's a Cloudinary URL, optimize it and force MP4 format
     if (url.includes('/upload/')) {
-      // Force MP4 format by adding f_mp4 transform and changing extension
-      // This ensures .mov files are served as MP4 which browsers can play
       const uploadMarker = '/upload/'
       const markerIndex = url.indexOf(uploadMarker)
       if (markerIndex !== -1) {
         const insertAt = markerIndex + uploadMarker.length
         const afterUpload = url.slice(insertAt)
         
-        // Check if transforms already exist
-        const transformMatch = afterUpload.match(/^([^/]+)/)
-        const existingTransforms = transformMatch && transformMatch[1].includes(',')
+        // Strip ANY existing transform segment (contains a comma) before the public ID
+        // This handles URLs that already have stale/invalid transforms baked in
+        const segments = afterUpload.split('/')
+        let publicIdStart = 0
+        if (segments[0] && segments[0].includes(',')) {
+          publicIdStart = segments[0].length + 1 // skip the transform segment + the slash
+        }
         
-        // Use f_mp4 to force MP4 format + proper transforms
-        // Always REPLACE existing transforms, never append - avoids invalid params like sp_le
+        const baseUrl = url.slice(0, insertAt)
+        const cleanPath = afterUpload.slice(publicIdStart)
+        
+        // Apply clean transforms: w_720 (reasonable width), q_auto (auto quality), f_mp4 (force MP4)
         const transforms = ["w_720", "q_auto", "f_mp4"]
         const transformStr = transforms.join(",")
         
-        if (existingTransforms) {
-          const remaining = afterUpload.slice(transformMatch![1].length)
-          const cleanRemaining = remaining.startsWith('/') ? remaining : '/' + remaining
-          url = url.slice(0, insertAt) + transformStr + cleanRemaining
-        } else {
-          const remaining = afterUpload
-          const cleanRemaining = remaining.startsWith('/') ? remaining.slice(1) : remaining
-          url = url.slice(0, insertAt) + transformStr + "/" + cleanRemaining
-        }
+        url = baseUrl + transformStr + "/" + cleanPath
       }
       
       return url
