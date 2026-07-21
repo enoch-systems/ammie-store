@@ -807,7 +807,8 @@ export default function ProductPage() {
             <div className="flex flex-col gap-4">
               <div className="flex gap-4 items-stretch">
                 <div
-                  className="relative flex-1 h-full rounded-3xl overflow-hidden bg-card boty-shadow group touch-pan-y"
+                  className="relative flex-1 h-full rounded-3xl overflow-hidden bg-card boty-shadow group touch-pan-y aspect-[3/4]"
+                  style={{ minHeight: '400px', maxHeight: '600px' }}
                   onTouchStart={handleTouchStart}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
