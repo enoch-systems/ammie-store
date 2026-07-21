@@ -29,9 +29,20 @@ function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl
   const handlePlay = () => {
     const vid = vidRef.current
     if (!vid) return
-    vid.play()
+    // Set controls BEFORE calling play() — if controls is added after
+    // play() starts, the browser fires pause() internally which aborts
+    // the play promise with the "interrupted by pause" error.
     vid.controls = true
     setPlaying(true)
+    // Use the promise to catch the rare AbortError that can still happen
+    // on some browsers when the controls UI is being attached.
+    const playPromise = vid.play()
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // AbortError is harmless — the video will play on the next tap.
+        // No user-visible action needed.
+      })
+    }
   }
 
   return (
