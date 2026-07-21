@@ -10,7 +10,7 @@ import { Footer } from "@/components/boty/footer"
 import { useCart } from "@/components/boty/cart-context"
 import { supabase, type Product } from "@/lib/supabase"
 import { getOptimizedProductImage } from "@/lib/image-utils"
-import { isVideoUrl, getOptimizedVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary"
+import { isVideoUrl, getOptimizedVideoUrl } from "@/lib/cloudinary"
 
 const benefits = [
   { icon: Leaf, label: "100% Human Hair" },
@@ -20,6 +20,59 @@ const benefits = [
 ]
 
 type AccordionSection = "details" | "howToUse" | "ingredients" | "delivery"
+
+// ── Video Player Component (self-contained, no external refs) ──
+function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl: string; alt: string }) {
+  const [playing, setPlaying] = useState(false)
+  const vidRef = useRef<HTMLVideoElement | null>(null)
+
+  const handlePlay = () => {
+    const vid = vidRef.current
+    if (!vid) return
+    vid.play()
+    vid.controls = true
+    setPlaying(true)
+  }
+
+  return (
+    <div className="relative w-full h-full">
+      {/* Poster image — visible until play is clicked */}
+      <div className={`absolute inset-0 transition-opacity duration-300 ${playing ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <Image
+          src={posterUrl}
+          alt={alt}
+          fill
+          sizes="(max-width: 1024px) 100vw, 50vw"
+          className="object-cover"
+          priority
+        />
+      </div>
+      {/* Play button overlay — visible until play is clicked */}
+      {!playing && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 boty-transition cursor-pointer z-10"
+          onClick={handlePlay}
+        >
+          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 boty-transition pointer-events-none">
+            <Play className="w-7 h-7 text-foreground ml-0.5" fill="currentColor" />
+          </div>
+        </div>
+      )}
+      {/* Video element */}
+      <video
+        ref={vidRef}
+        className={`w-full h-full object-cover transition-opacity duration-300 ${playing ? 'opacity-100' : 'opacity-0'}`}
+        preload="none"
+        playsInline
+        loop
+        muted
+        controls={playing}
+      >
+        <source src={getOptimizedVideoUrl(videoUrl)} type="video/mp4" />
+      </video>
+    </div>
+  )
+}
 
 export default function ProductPage() {
   const params = useParams()
@@ -126,7 +179,6 @@ export default function ProductPage() {
 
   // Preload ALL product images in the background as soon as the product
   // loads, so clicking any thumbnail swaps instantly — no network wait.
-  // Video URLs are skipped — they get a poster frame instead.
   useEffect(() => {
     if (!product || preloaded) return
     const imgs = product.images.filter((img) => img && img.trim() !== "")
@@ -135,7 +187,6 @@ export default function ProductPage() {
     let loaded = 0
     const total = imgs.length
     imgs.forEach((url) => {
-      // For video URLs, preload the poster frame (static image) instead
       const img = new window.Image()
       img.src = getOptimizedProductImage(url, "detail")
       img.onload = () => {
@@ -179,14 +230,12 @@ export default function ProductPage() {
 
   const handleBuyNow = () => {
     if (!product) return
-    // Add to cart first
     addItem({
       id: product.id,
       name: product.name,
       price: product.price,
       image: getOptimizedProductImage(realImages[0] || "/placeholder.svg", "card")
     })
-    // Then open the cart drawer so they can checkout
     setIsOpen(true)
   }
 
@@ -313,7 +362,6 @@ export default function ProductPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden">
-      {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -341,34 +389,11 @@ export default function ProductPage() {
                   onTouchEnd={handleTouchEnd}
                 >
                   {isVideoUrl(realImages[selectedImageIndex] || "") ? (
-                    // Video main display — poster frame + play overlay
-                    <div className="relative w-full h-full">
-                      <Image
-                        src={getOptimizedProductImage(realImages[selectedImageIndex], "detail")}
-                        alt={`${product.name} - Video ${selectedImageIndex + 1}`}
-                        fill
-                        sizes="(max-width: 1024px) 100vw, 50vw"
-                        className="object-cover"
-                        priority
-                      />
-                      {/* Play button overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 boty-transition cursor-pointer group/video">
-                        <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg group-hover/video:scale-110 boty-transition">
-                          <Play className="w-7 h-7 text-foreground ml-0.5" fill="currentColor" />
-                        </div>
-                      </div>
-                      {/* Actual video element (hidden until click) */}
-                      <video
-                        className="absolute inset-0 w-full h-full object-cover"
-                        preload="none"
-                        playsInline
-                        controls
-                        loop
-                        muted
-                      >
-                        <source src={getOptimizedVideoUrl(realImages[selectedImageIndex])} type="video/mp4" />
-                      </video>
-                    </div>
+                    <VideoPlayer
+                      videoUrl={realImages[selectedImageIndex]}
+                      posterUrl={getOptimizedProductImage(realImages[selectedImageIndex], "detail")}
+                      alt={`${product.name} - Video ${selectedImageIndex + 1}`}
+                    />
                   ) : (
                     <Image
                       src={getOptimizedProductImage(realImages[selectedImageIndex] || "/placeholder.svg", "detail")}
