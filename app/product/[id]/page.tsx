@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play } from "lucide-react"
+import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play, Pause, Maximize2 } from "lucide-react"
 import { Header } from "@/components/boty/header"
 import { Footer } from "@/components/boty/footer"
 import { useCart } from "@/components/boty/cart-context"
 import { supabase, type Product } from "@/lib/supabase"
 import { getOptimizedProductImage } from "@/lib/image-utils"
-import { isVideoUrl, getOptimizedVideoUrl } from "@/lib/cloudinary"
+import { isVideoUrl, getOptimizedVideoUrl, getSafeVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary"
 
 const benefits = [
   { icon: Leaf, label: "100% Human Hair" },
@@ -21,65 +21,454 @@ const benefits = [
 
 type AccordionSection = "details" | "howToUse" | "ingredients" | "delivery"
 
-// ── Video Player Component (self-contained, no external refs) ──
-function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl: string; alt: string }) {
-  const [playing, setPlaying] = useState(false)
+// ── Small self-contained thumbnail video (shows a real frame, no image-optimizer dependency) ──
+function ThumbnailVideo({ videoUrl, posterUrl, existingThumbnail }: { videoUrl: string; posterUrl?: string; existingThumbnail?: string }) {
   const vidRef = useRef<HTMLVideoElement | null>(null)
+  const [thumbnail, setThumbnail] = useState<string | null>(existingThumbnail || null)
+  const [ready, setReady] = useState(false)
+  const [hasError, setHasError] = useState(false)
+  const safeUrl = getSafeVideoUrl(videoUrl)
 
-  const handlePlay = () => {
+  useEffect(() => {
     const vid = vidRef.current
     if (!vid) return
-    // Set controls BEFORE calling play() — if controls is added after
-    // play() starts, the browser fires pause() internally which aborts
-    // the play promise with the "interrupted by pause" error.
+
+    let captured = false
+    let captureAttempts = 0
+    const maxAttempts = 3
+
+    const captureFrame = () => {
+      if (captured) return
+      captureAttempts++
+
+      try {
+        // Ensure video has enough data
+        if (vid.readyState < 2) {
+          if (captureAttempts < maxAttempts) {
+            setTimeout(() => captureFrame(), 500)
+          } else {
+            setReady(true)
+          }
+          return
+        }
+
+        // Must set crossOrigin before drawing to canvas
+        try { vid.crossOrigin = 'anonymous' } catch (_) {}
+
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          setReady(true)
+          return
+        }
+
+        canvas.width = vid.videoWidth || 640
+        canvas.height = vid.videoHeight || 480
+        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height)
+        const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.9)
+        setThumbnail(thumbnailUrl)
+        captured = true
+        setReady(true)
+      } catch (err) {
+        // If canvas is tainted (CORS), fall back to poster
+        if (posterUrl) {
+          // Just use poster — no canvas needed
+          captured = true
+          setReady(true)
+        } else if (captureAttempts < maxAttempts) {
+          setTimeout(() => captureFrame(), 500)
+        } else {
+          setReady(true)
+        }
+      }
+    }
+
+    const handleCanPlay = () => {
+      vid.currentTime = 0.1
+    }
+
+    const handleSeeked = () => {
+      captureFrame()
+    }
+
+    const handleError = () => {
+      setHasError(true)
+      setReady(true)
+    }
+
+    const handleLoadedData = () => {
+      if (vid.readyState >= 2) {
+        vid.currentTime = 0.1
+      }
+    }
+
+    vid.addEventListener('canplay', handleCanPlay)
+    vid.addEventListener('seeked', handleSeeked)
+    vid.addEventListener('error', handleError)
+    vid.addEventListener('loadeddata', handleLoadedData)
+
+    vid.load()
+
+    // Fallback: capture frame after timeout if events don't fire
+    const timeout = setTimeout(() => {
+      if (!captured) {
+        captureFrame()
+      }
+    }, 2000)
+
+    return () => {
+      vid.removeEventListener('canplay', handleCanPlay)
+      vid.removeEventListener('seeked', handleSeeked)
+      vid.removeEventListener('error', handleError)
+      vid.removeEventListener('loadeddata', handleLoadedData)
+      clearTimeout(timeout)
+    }
+  }, [safeUrl, posterUrl])
+
+  // Show captured thumbnail
+  if (thumbnail) {
+    return (
+      <img
+        src={thumbnail}
+        alt="Video thumbnail"
+        className="w-full h-full object-cover"
+      />
+    )
+  }
+
+  // Show poster image if video failed to load
+  if (hasError && posterUrl) {
+    return (
+      <img
+        src={posterUrl}
+        alt="Video thumbnail"
+        className="w-full h-full object-cover"
+      />
+    )
+  }
+
+  // Show placeholder if video failed to load or is still loading
+  if (hasError || !ready) {
+    return (
+      <div className="w-full h-full bg-muted flex items-center justify-center">
+        <Play className="w-6 h-6 text-muted-foreground" fill="currentColor" />
+      </div>
+    )
+  }
+
+  // Show video element (display:none but still rendering) while capturing frame
+  return (
+    <video
+      ref={vidRef}
+      src={safeUrl}
+      muted
+      playsInline
+      preload="auto"
+      crossOrigin="anonymous"
+      className="w-full h-full object-cover absolute opacity-0 pointer-events-none"
+      style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' }}
+    />
+  )
+}
+
+// ── Video Player Component (self-contained, no external refs) ──
+function VideoPlayer({ videoUrl, posterUrl, alt, onThumbnailChange }: { videoUrl: string; posterUrl: string; alt: string; onThumbnailChange?: (thumbnail: string) => void }) {
+  const [playing, setPlaying] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [buffering, setBuffering] = useState(false)
+  const [hasInteracted, setHasInteracted] = useState(false)
+  const [error, setError] = useState(false)
+  const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const vidRef = useRef<HTMLVideoElement | null>(null)
+
+  // Get safe video URL to prevent 404/400 errors
+  const safeVideoUrl = getSafeVideoUrl(videoUrl)
+
+  // Generate thumbnail from video first frame
+  const generateVideoThumbnail = useCallback(() => {
+    const vid = vidRef.current
+    if (!vid || !vid.videoWidth) return
+
+    try {
+      // Set crossOrigin before drawing to canvas to avoid tainted canvas error
+      vid.crossOrigin = 'anonymous'
+      
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      canvas.width = vid.videoWidth
+      canvas.height = vid.videoHeight
+
+      // Seek to 0.5 seconds to get a good frame
+      const currentTime = vid.currentTime
+      vid.currentTime = 0.5
+
+      const captureFrame = () => {
+        try {
+          ctx.drawImage(vid, 0, 0, canvas.width, canvas.height)
+          const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.9)
+          setVideoThumbnail(thumbnailUrl)
+          // Share the captured thumbnail with parent so it can be used in the sidebar thumbnail
+          if (onThumbnailChange && thumbnailUrl) {
+            onThumbnailChange(thumbnailUrl)
+          }
+        } catch (err) {
+          // If canvas is tainted, just use the poster image
+          console.log('Cannot capture video frame due to CORS, using poster instead')
+        }
+        vid.currentTime = currentTime
+      }
+
+      const onSeeked = () => {
+        captureFrame()
+        vid.removeEventListener('seeked', onSeeked)
+      }
+
+      vid.addEventListener('seeked', onSeeked)
+
+      // Fallback: capture current frame if seeked doesn't fire
+      setTimeout(() => {
+        captureFrame()
+      }, 500)
+    } catch (err) {
+      console.error('Failed to generate thumbnail:', err)
+    }
+  }, [onThumbnailChange])
+
+  // Preload video metadata on mount for instant playback
+  useEffect(() => {
+    const vid = vidRef.current
+    if (!vid) return
+
+    const handleLoadedData = () => {
+      setLoading(false)
+      setError(false)
+      // Generate thumbnail from video first frame
+      generateVideoThumbnail()
+    }
+
+    const handleWaiting = () => {
+      setBuffering(true)
+    }
+
+    const handleCanPlay = () => {
+      setBuffering(false)
+    }
+
+    const handlePlaying = () => {
+      setBuffering(false)
+    }
+
+    const handleError = () => {
+      setLoading(false)
+      setError(true)
+      console.error('Video failed to load:', safeVideoUrl)
+    }
+
+    vid.addEventListener('loadeddata', handleLoadedData)
+    vid.addEventListener('waiting', handleWaiting)
+    vid.addEventListener('canplay', handleCanPlay)
+    vid.addEventListener('playing', handlePlaying)
+    vid.addEventListener('error', handleError)
+
+    // Start loading metadata immediately
+    vid.load()
+
+    return () => {
+      vid.removeEventListener('loadeddata', handleLoadedData)
+      vid.removeEventListener('waiting', handleWaiting)
+      vid.removeEventListener('canplay', handleCanPlay)
+      vid.removeEventListener('playing', handlePlaying)
+      vid.removeEventListener('error', handleError)
+    }
+  }, [safeVideoUrl, generateVideoThumbnail])
+
+  const handlePlay = async () => {
+    const vid = vidRef.current
+    if (!vid) return
+
+    setHasInteracted(true)
+    setError(false)
+    
+    // If video is still loading, show loading state
+    if (loading) {
+      setPlaying(true)
+      vid.controls = true
+      
+      // Wait for video to be ready
+      const tryPlay = async () => {
+        try {
+          await vid.play()
+        } catch (error) {
+          // If play fails, video is still loading
+          // The loadeddata event will trigger and we can retry
+          console.log('Video loading, will play when ready')
+        }
+      }
+      
+      tryPlay()
+      return
+    }
+
+    // Video is loaded, resume from wherever it was left (vid.currentTime
+    // is preserved automatically by the browser across pause/play).
     vid.controls = true
     setPlaying(true)
-    // Use the promise to catch the rare AbortError that can still happen
-    // on some browsers when the controls UI is being attached.
+    
     const playPromise = vid.play()
     if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // AbortError is harmless — the video will play on the next tap.
-        // No user-visible action needed.
+      playPromise.catch((error) => {
+        console.error('Playback failed:', error)
+        // If playback fails due to URL error, show error state
+        if (error.name === 'NotSupportedError' || error.message.includes('404') || error.message.includes('400')) {
+          setError(true)
+          setPlaying(false)
+        }
       })
     }
   }
 
+  // Actually pause the media element (not just the UI state), so the
+  // exact playback position is preserved for the next play.
+  const handlePause = useCallback(() => {
+    const vid = vidRef.current
+    if (vid && !vid.paused) {
+      vid.pause()
+    }
+    setPlaying(false)
+  }, [])
+
   return (
     <div className="relative w-full h-full">
-      {/* Poster image — visible until play is clicked */}
-      <div className={`absolute inset-0 transition-opacity duration-300 ${playing ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        <Image
-          src={posterUrl}
-          alt={alt}
-          fill
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          className="object-cover"
-          priority
-        />
-      </div>
-      {/* Play button overlay — visible until play is clicked */}
-      {!playing && (
+      {/* Video thumbnail (first frame) - only visible before first interaction */}
+      {!hasInteracted && !error && (
+        <div className="absolute inset-0 transition-opacity duration-300 opacity-100">
+          {videoThumbnail ? (
+            <Image
+              src={videoThumbnail}
+              alt={alt}
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <Image
+              src={posterUrl}
+              alt={alt}
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+              priority
+            />
+          )}
+        </div>
+      )}
+      
+      {/* Loading spinner — shown while video is buffering/loading */}
+      {hasInteracted && loading && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-20">
+          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
+      
+      {/* Buffering indicator */}
+      {playing && buffering && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/10 z-20 pointer-events-none">
+          <div className="w-10 h-10 border-3 border-white/40 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
+      
+      {/* Error state - show poster image */}
+      {error && (
+        <div className="absolute inset-0 z-20">
+          <Image
+            src={posterUrl}
+            alt={alt}
+            fill
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-cover"
+            priority
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <div className="text-center text-white p-4">
+              <p className="text-sm mb-2">Video format not supported</p>
+              <button
+                onClick={() => {
+                  setError(false)
+                  setLoading(true)
+                  if (vidRef.current) {
+                    vidRef.current.load()
+                  }
+                }}
+                className="px-4 py-2 bg-white/20 rounded-full text-xs hover:bg-white/30 transition"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Play/Pause button overlay - only show before first interaction */}
+      {!hasInteracted && !error && (
         <div
           className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 boty-transition cursor-pointer z-10"
           onClick={handlePlay}
         >
-          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 boty-transition pointer-events-none">
+          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:scale-110 boty-transition pointer-events-none opacity-100">
             <Play className="w-7 h-7 text-foreground ml-0.5" fill="currentColor" />
           </div>
         </div>
       )}
-      {/* Video element */}
+      
+      {/* Video element - shows at original size with black bars */}
       <video
         ref={vidRef}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${playing ? 'opacity-100' : 'opacity-0'}`}
-        preload="none"
+        className={`w-full h-full transition-opacity duration-300 ${hasInteracted && !error ? 'opacity-100' : 'opacity-0'}`}
+        style={{ objectFit: 'contain', backgroundColor: 'black' }}
+        preload="metadata"
         playsInline
         loop
         muted
-        controls={playing}
+        controls
+        crossOrigin="anonymous"
+        onPlay={() => {
+          setBuffering(false)
+          setPlaying(true)
+        }}
+        onPause={() => {
+          // Sync the UI state when the native video pauses (e.g. user clicks
+          // native controls, or browser auto-pauses). This preserves the exact
+          // playback position so resuming starts from the same spot.
+          setPlaying(false)
+        }}
+        onEnded={() => {
+          // Video loop will restart it, but we need to reflect pause briefly
+          // so the overlay thumbnail shows between loop cycles if needed.
+          setPlaying(false)
+          // Re-trigger play after a microtask to keep looping seamless
+          setTimeout(() => {
+            const v = vidRef.current
+            if (v) {
+              v.play().catch(() => {})
+              setPlaying(true)
+            }
+          }, 50)
+        }}
+        onError={() => {
+          console.error('Video element error for URL:', safeVideoUrl)
+          setError(true)
+          setLoading(false)
+        }}
       >
-        <source src={getOptimizedVideoUrl(videoUrl)} type="video/mp4" />
+        <source src={safeVideoUrl} />
+        {/* Fallback: try original URL if optimized URL fails */}
+        {safeVideoUrl !== videoUrl && (
+          <source src={videoUrl} />
+        )}
       </video>
     </div>
   )
@@ -101,6 +490,7 @@ export default function ProductPage() {
   const [isAdded, setIsAdded] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [preloaded, setPreloaded] = useState(false)
+  const [videoThumbnails, setVideoThumbnails] = useState<Record<number, string>>({})
 
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
@@ -188,6 +578,10 @@ export default function ProductPage() {
     setPreloaded(false)
   }, [productId])
 
+  const realImages = product
+    ? product.images.filter((img) => img && img.trim() !== "")
+    : []
+
   // Preload ALL product images in the background as soon as the product
   // loads, so clicking any thumbnail swaps instantly — no network wait.
   useEffect(() => {
@@ -211,9 +605,28 @@ export default function ProductPage() {
     })
   }, [product, preloaded])
 
-  const realImages = product
-    ? product.images.filter((img) => img && img.trim() !== "")
-    : []
+  // Preload videos when they're about to be viewed (adjacent to current)
+  useEffect(() => {
+    if (!product || realImages.length === 0) return
+
+    const currentIndex = selectedImageIndex
+    const indicesToPreload = [
+      currentIndex, // Current
+      (currentIndex + 1) % realImages.length, // Next
+      (currentIndex - 1 + realImages.length) % realImages.length, // Previous
+    ]
+
+    indicesToPreload.forEach((index) => {
+      const imgUrl = realImages[index]
+      if (!imgUrl || !isVideoUrl(imgUrl)) return
+
+      // Preload video by creating a hidden video element
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.src = getSafeVideoUrl(imgUrl)
+      video.load()
+    })
+  }, [product, selectedImageIndex, realImages])
 
   const thumbnailSlots = (() => {
     const slots = [...realImages]
@@ -404,6 +817,9 @@ export default function ProductPage() {
                       videoUrl={realImages[selectedImageIndex]}
                       posterUrl={getOptimizedProductImage(realImages[selectedImageIndex], "detail")}
                       alt={`${product.name} - Video ${selectedImageIndex + 1}`}
+                      onThumbnailChange={(thumb) => {
+                        setVideoThumbnails(prev => ({ ...prev, [selectedImageIndex]: thumb }))
+                      }}
                     />
                   ) : (
                     <Image
@@ -431,13 +847,28 @@ export default function ProductPage() {
                               : "opacity-60 hover:opacity-100"
                           }`}
                         >
-                          <Image
-                            src={getOptimizedProductImage(img, "thumbnail")}
-                            alt={`${product.name} thumbnail ${index + 1}`}
-                            fill
-                            sizes="76px"
-                            className="object-cover"
-                          />
+                          {isVideoUrl(img) ? (
+                            <ThumbnailVideo 
+                              videoUrl={img} 
+                              posterUrl={getOptimizedProductImage(img, "thumbnail")}
+                              existingThumbnail={videoThumbnails[index]}
+                            />
+                          ) : (
+                            <Image
+                              src={getOptimizedProductImage(img, "thumbnail")}
+                              alt={`${product.name} thumbnail ${index + 1}`}
+                              fill
+                              sizes="76px"
+                              className="object-cover"
+                            />
+                          )}
+                          {isVideoUrl(img) && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/15 pointer-events-none">
+                              <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-white/90 flex items-center justify-center shadow-sm">
+                                <Play className="w-3 h-3 md:w-3.5 md:h-3.5 text-foreground ml-0.5" fill="currentColor" />
+                              </div>
+                            </div>
+                          )}
                         </button>
                       ) : (
                         <div

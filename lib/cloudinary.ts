@@ -9,7 +9,9 @@ export function isVideoUrl(url: string): boolean {
   const lower = url.toLowerCase()
   // Cloudinary video URLs contain /video/ in the path
   if (lower.includes("/video/upload/")) return true
-  // Also check file extension
+  // Check if it's a video file extension (could be just a filename)
+  if (VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))) return true
+  // Also check if extension is in the URL
   return VIDEO_EXTENSIONS.some((ext) => lower.includes(ext))
 }
 
@@ -34,13 +36,108 @@ export function getVideoPosterUrl(videoUrl: string): string {
  * - f_auto: automatic format selection
  */
 export function getOptimizedVideoUrl(videoUrl: string, width: number = 720, quality: number = 40): string {
+  // If no URL or already has our transforms, return as-is to avoid double-transformation
+  if (!videoUrl) return videoUrl
+  
+  // If URL doesn't contain /upload/, it's not a Cloudinary URL
+  // Return it as-is (it might be a relative path or incomplete URL)
   const uploadMarker = "/upload/"
   const markerIndex = videoUrl.indexOf(uploadMarker)
   if (markerIndex === -1) return videoUrl
   
   const insertAt = markerIndex + uploadMarker.length
+  const afterUpload = videoUrl.slice(insertAt)
+  
+  // Check if transforms already exist between /upload/ and the next segment
+  // Transforms are comma-separated and end at the first slash
+  const transformMatch = afterUpload.match(/^([^/]+)/)
+  const existingTransforms = transformMatch && transformMatch[1].includes(',')
+  
   const transforms = [`w_${width}`, `q_${quality}`, "sp_le", "f_auto"]
-  return `${videoUrl.slice(0, insertAt)}${transforms.join(",")}/${videoUrl.slice(insertAt)}`
+  
+  if (existingTransforms) {
+    // Replace existing transforms with ours
+    const transformStr = transforms.join(",")
+    const existingEnd = transformMatch[1].length
+    const remaining = afterUpload.slice(existingEnd)
+    // Ensure we don't create double slashes
+    const cleanRemaining = remaining.startsWith('/') ? remaining : '/' + remaining
+    return videoUrl.slice(0, insertAt) + transformStr + cleanRemaining
+  }
+  
+  // Insert fresh transforms - ensure no double slashes
+  const transformStr = transforms.join(",")
+  const remaining = afterUpload
+  const cleanRemaining = remaining.startsWith('/') ? remaining.slice(1) : remaining
+  return videoUrl.slice(0, insertAt) + transformStr + "/" + cleanRemaining
+}
+
+/**
+ * Get Cloudinary cloud name from environment or URL
+ */
+function getCloudinaryCloudName(): string | null {
+  // Try environment variable first
+  const envCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+  if (envCloudName) return envCloudName
+  
+  // Common fallback - check if there's a default cloud name pattern
+  // This helps during development when env vars might not be set
+  return null
+}
+
+/**
+ * Construct a full Cloudinary URL from a public ID or filename
+ * Handles cases where only the filename/public ID is stored
+ */
+export function getFullCloudinaryVideoUrl(publicId: string): string {
+  const cloudName = getCloudinaryCloudName()
+  
+  // If it's already a full URL, return as-is
+  if (publicId.startsWith('http://') || publicId.startsWith('https://')) {
+    return publicId
+  }
+  
+  // If no cloud name configured, return as-is (will likely fail but at least we tried)
+  if (!cloudName) {
+    console.warn('Cloudinary cloud name not configured. Video URL:', publicId)
+    return publicId
+  }
+  
+  // Construct full Cloudinary URL
+  // Remove any leading slashes or folder prefixes that might be in the public ID
+  const cleanPublicId = publicId.replace(/^\/+/, '')
+  
+  return `https://res.cloudinary.com/${cloudName}/video/upload/${cleanPublicId}`
+}
+
+/**
+ * Get a safe video URL that won't break if transformations fail
+ * Returns the original URL if optimization fails
+ */
+export function getSafeVideoUrl(videoUrl: string): string {
+  try {
+    // If it's already a full URL with /upload/, optimize it
+    if (videoUrl.includes('/upload/')) {
+      const optimized = getOptimizedVideoUrl(videoUrl)
+      // Basic validation: ensure URL starts with http/https
+      if (optimized.startsWith('http://') || optimized.startsWith('https://')) {
+        return optimized
+      }
+    }
+    
+    // If it's just a filename or public ID, construct full Cloudinary URL
+    if (!videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
+      const fullUrl = getFullCloudinaryVideoUrl(videoUrl)
+      if (fullUrl !== videoUrl) {
+        return getOptimizedVideoUrl(fullUrl)
+      }
+    }
+    
+    return videoUrl
+  } catch (error) {
+    console.error('Failed to optimize video URL:', error)
+    return videoUrl
+  }
 }
 
 export async function uploadToCloudinary(file: File): Promise<string> {
@@ -53,8 +150,17 @@ export async function uploadToCloudinary(file: File): Promise<string> {
 
   const isVideo = file.type.startsWith("video/")
 
+  // Convert video to MP4 format if it's a video file
+  let fileToUpload = file
+  if (isVideo) {
+    console.log('Converting video to MP4 format...')
+    const { convertToMp4 } = await import('./video-utils')
+    fileToUpload = await convertToMp4(file)
+    console.log('Video converted successfully:', fileToUpload.type, fileToUpload.name)
+  }
+
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', fileToUpload)
   formData.append('upload_preset', uploadPreset)
   formData.append('folder', 'ammie-store/products')
 
