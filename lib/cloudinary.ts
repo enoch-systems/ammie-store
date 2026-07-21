@@ -140,27 +140,19 @@ export function getSafeVideoUrl(videoUrl: string): string {
         const transformMatch = afterUpload.match(/^([^/]+)/)
         const existingTransforms = transformMatch && transformMatch[1].includes(',')
         
-        // Add f_mp4 to force MP4 format
-        const transforms = [`w_720`, `q_40`, "sp_le", "f_auto", "f_mp4"]
+        // Use f_mp4 to force MP4 format + proper transforms
+        // Always REPLACE existing transforms, never append - avoids invalid params like sp_le
+        const transforms = ["w_720", "q_auto", "f_mp4"]
+        const transformStr = transforms.join(",")
         
         if (existingTransforms) {
-          // Append f_mp4 to existing transforms
-          const existingStr = transformMatch[1]
-          const newTransforms = `${existingStr},f_mp4`
-          const remaining = afterUpload.slice(transformMatch[1].length)
+          const remaining = afterUpload.slice(transformMatch![1].length)
           const cleanRemaining = remaining.startsWith('/') ? remaining : '/' + remaining
-          url = url.slice(0, insertAt) + newTransforms + cleanRemaining
+          url = url.slice(0, insertAt) + transformStr + cleanRemaining
         } else {
-          // Insert fresh transforms
-          const transformStr = transforms.join(",")
           const remaining = afterUpload
           const cleanRemaining = remaining.startsWith('/') ? remaining.slice(1) : remaining
           url = url.slice(0, insertAt) + transformStr + "/" + cleanRemaining
-        }
-        
-        // Replace .mov extension with .mp4
-        if (url.toLowerCase().endsWith('.mov')) {
-          url = url.slice(0, -4) + '.mp4'
         }
       }
       
