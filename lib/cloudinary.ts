@@ -116,24 +116,58 @@ export function getFullCloudinaryVideoUrl(publicId: string): string {
  */
 export function getSafeVideoUrl(videoUrl: string): string {
   try {
-    // If it's already a full URL with /upload/, optimize it
-    if (videoUrl.includes('/upload/')) {
-      const optimized = getOptimizedVideoUrl(videoUrl)
-      // Basic validation: ensure URL starts with http/https
-      if (optimized.startsWith('http://') || optimized.startsWith('https://')) {
-        return optimized
-      }
-    }
+    let url = videoUrl
     
     // If it's just a filename or public ID, construct full Cloudinary URL
-    if (!videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
-      const fullUrl = getFullCloudinaryVideoUrl(videoUrl)
-      if (fullUrl !== videoUrl) {
-        return getOptimizedVideoUrl(fullUrl)
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      const fullUrl = getFullCloudinaryVideoUrl(url)
+      if (fullUrl !== url) {
+        url = fullUrl
       }
     }
     
-    return videoUrl
+    // If it's a Cloudinary URL, optimize it and force MP4 format
+    if (url.includes('/upload/')) {
+      // Force MP4 format by adding f_mp4 transform and changing extension
+      // This ensures .mov files are served as MP4 which browsers can play
+      const uploadMarker = '/upload/'
+      const markerIndex = url.indexOf(uploadMarker)
+      if (markerIndex !== -1) {
+        const insertAt = markerIndex + uploadMarker.length
+        const afterUpload = url.slice(insertAt)
+        
+        // Check if transforms already exist
+        const transformMatch = afterUpload.match(/^([^/]+)/)
+        const existingTransforms = transformMatch && transformMatch[1].includes(',')
+        
+        // Add f_mp4 to force MP4 format
+        const transforms = [`w_720`, `q_40`, "sp_le", "f_auto", "f_mp4"]
+        
+        if (existingTransforms) {
+          // Append f_mp4 to existing transforms
+          const existingStr = transformMatch[1]
+          const newTransforms = `${existingStr},f_mp4`
+          const remaining = afterUpload.slice(transformMatch[1].length)
+          const cleanRemaining = remaining.startsWith('/') ? remaining : '/' + remaining
+          url = url.slice(0, insertAt) + newTransforms + cleanRemaining
+        } else {
+          // Insert fresh transforms
+          const transformStr = transforms.join(",")
+          const remaining = afterUpload
+          const cleanRemaining = remaining.startsWith('/') ? remaining.slice(1) : remaining
+          url = url.slice(0, insertAt) + transformStr + "/" + cleanRemaining
+        }
+        
+        // Replace .mov extension with .mp4
+        if (url.toLowerCase().endsWith('.mov')) {
+          url = url.slice(0, -4) + '.mp4'
+        }
+      }
+      
+      return url
+    }
+    
+    return url
   } catch (error) {
     console.error('Failed to optimize video URL:', error)
     return videoUrl
