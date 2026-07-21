@@ -26,6 +26,7 @@ function ThumbnailVideo({ videoUrl, posterUrl }: { videoUrl: string; posterUrl?:
   const vidRef = useRef<HTMLVideoElement | null>(null)
   const [thumbnail, setThumbnail] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const safeUrl = getSafeVideoUrl(videoUrl)
 
   useEffect(() => {
     const vid = vidRef.current
@@ -73,7 +74,7 @@ function ThumbnailVideo({ videoUrl, posterUrl }: { videoUrl: string; posterUrl?:
       vid.removeEventListener('loadeddata', onLoaded)
       clearTimeout(timeout)
     }
-  }, [])
+  }, [safeUrl])
 
   if (thumbnail) return <img src={thumbnail} alt="" className="w-full h-full object-cover" />
   if (posterUrl) return <img src={posterUrl} alt="" className="w-full h-full object-cover" />
@@ -110,7 +111,10 @@ function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl
       await vid.play()
       setPlaying(true)
     } catch (e: any) {
-      if (e.name === 'NotSupportedError') setError(true)
+      console.error('Playback failed:', e)
+      if (e.name === 'NotSupportedError' || e.message.includes('404') || e.message.includes('400')) {
+        setError(true)
+      }
     }
   }
 
@@ -143,10 +147,10 @@ function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl
         </button>
       )}
       
-      {/* Video element */}
+      {/* Video element - always in DOM, visibility controlled by opacity */}
       <video
         ref={vidRef}
-        className={`w-full h-full object-cover ${hasInteracted && !error ? 'opacity-100' : 'opacity-0 absolute'}`}
+        className={`w-full h-full object-cover ${hasInteracted && !error ? 'opacity-100' : 'opacity-0'}`}
         preload="metadata"
         playsInline
         loop
@@ -155,7 +159,7 @@ function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl
         crossOrigin="anonymous"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onError={() => { setError(true); setPlaying(false) }}
+        onError={() => { console.error('Video error for:', safeVideoUrl); setError(true); setPlaying(false) }}
       >
         <source src={safeVideoUrl} />
         {safeVideoUrl !== videoUrl && <source src={videoUrl} />}
