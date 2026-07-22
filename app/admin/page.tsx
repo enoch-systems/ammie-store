@@ -149,36 +149,40 @@ export default function AdminPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Sort images before saving: video always first, images fill the rest.
-    // Rule enforcement:
-    //   - If product has a video, it must be the main media (slot 0)
-    //   - Slot 0 is the video poster thumbnail with play icon
-    //   - Slots 1-4 are images only
-    //   - Max 1 video + 4 images
-    //   - If no video, all 5 slots can be images
-    const rawImages = form.images.filter(img => img.trim() !== "")
-    const { isVideoUrl, getVideoPosterUrl } = await import('@/lib/cloudinary')
-    
-    // Separate video from images
-    const video = rawImages.find(img => isVideoUrl(img))
-    const images = rawImages.filter(img => !isVideoUrl(img))
-    
-    // Build final sorted array: video (optional) + up to 4 images
-    const sortedImages: string[] = []
-    if (video) {
-      sortedImages.push(video) // slot 0: video
-    }
-    // Fill slots 1-4 with images (up to 4)
-    sortedImages.push(...images.slice(0, 4))
-
-    // Main media is required — block submission if empty
-    if (sortedImages.length === 0) {
-      toast.error('Please add at least one image or video before submitting.')
-      return
-    }
+    // Initialize productData early so it's available in catch block for logging
+    let productData: Record<string, any> = {}
 
     try {
-      const productData = {
+      // Sort images before saving: video always first, images fill the rest.
+      // Rule enforcement:
+      //   - If product has a video, it must be the main media (slot 0)
+      //   - Slot 0 is the video poster thumbnail with play icon
+      //   - Slots 1-4 are images only
+      //   - Max 1 video + 4 images
+      //   - If no video, all 5 slots can be images
+      const rawImages = form.images.filter(img => img.trim() !== "")
+      const { isVideoUrl, getVideoPosterUrl } = await import('@/lib/cloudinary')
+      
+      // Separate video from images
+      const video = rawImages.find(img => isVideoUrl(img))
+      const images = rawImages.filter(img => !isVideoUrl(img))
+      
+      // Build final sorted array: video (optional) + up to 4 images
+      const sortedImages: string[] = []
+      if (video) {
+        sortedImages.push(video) // slot 0: video
+      }
+      // Fill slots 1-4 with images (up to 4)
+      sortedImages.push(...images.slice(0, 4))
+
+      // Main media is required — block submission if empty
+      if (sortedImages.length === 0) {
+        toast.error('Please add at least one image or video before submitting.')
+        return
+      }
+
+      // Build productData for saving and logging
+      productData = {
         name: form.name,
         price: parseFloat(form.price),
         images: sortedImages,
@@ -189,6 +193,7 @@ export default function AdminPage() {
         badge: form.badge || null,
         description: form.description || getProductDescription(form.name),
       }
+
 
       const client = createClientBrowser()
 
@@ -231,6 +236,8 @@ export default function AdminPage() {
         hint: error?.hint,
         code: error?.code,
         raw: error,
+        errorType: error?.constructor?.name,
+        errorKeys: error ? Object.keys(error) : [],
         // Also log the product data to see what was being saved
         productData: JSON.stringify(productData, null, 2),
       })
