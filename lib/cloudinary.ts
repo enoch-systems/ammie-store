@@ -17,7 +17,18 @@ export function isVideoUrl(url: string): boolean {
 
 /**
  * Given a Cloudinary video URL, returns a static poster frame URL.
- * Simply changes /video/upload/ to /image/upload/ and adds f_auto,q_auto.
+ * 
+ * Changes /video/upload/ to /image/upload/, adds:
+ *   - so_1.0  → capture frame at 1 second (near the beginning)
+ *   - f_auto  → automatic format selection (WebP/AVIF)
+ *   - q_auto  → automatic quality optimization
+ *
+ * This generates a thumbnail from the video itself with no additional
+ * storage cost. The same URL is used across the entire app: homepage,
+ * shop page, product page, and admin panel — a single source of truth.
+ *
+ * The so_1.0 transform ensures the thumbnail is always the same frame
+ * (first second) rather than Cloudinary's default (mid-video).
  */
 export function getVideoPosterUrl(videoUrl: string): string {
   const lower = videoUrl.toLowerCase()
@@ -25,7 +36,7 @@ export function getVideoPosterUrl(videoUrl: string): string {
   const idx = lower.indexOf(marker)
   if (idx === -1) return videoUrl
   
-  return `${videoUrl.slice(0, idx)}/image/upload/f_auto,q_auto/${videoUrl.slice(idx + marker.length)}`
+  return `${videoUrl.slice(0, idx)}/image/upload/so_1.0,f_auto,q_auto/${videoUrl.slice(idx + marker.length)}`
 }
 
 /**
