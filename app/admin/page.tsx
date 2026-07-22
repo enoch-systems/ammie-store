@@ -149,10 +149,31 @@ export default function AdminPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Main image is required — block submission if it's missing so a
-    // product can never be saved without at least one image.
-    if (!form.images[0] || form.images[0].trim() === "") {
-      toast.error('Please add a main product image before submitting.')
+    // Sort images before saving: video always first, images fill the rest.
+    // Rule enforcement:
+    //   - If product has a video, it must be the main media (slot 0)
+    //   - Slot 0 is the video poster thumbnail with play icon
+    //   - Slots 1-4 are images only
+    //   - Max 1 video + 4 images
+    //   - If no video, all 5 slots can be images
+    const rawImages = form.images.filter(img => img.trim() !== "")
+    const { isVideoUrl, getVideoPosterUrl } = await import('@/lib/cloudinary')
+    
+    // Separate video from images
+    const video = rawImages.find(img => isVideoUrl(img))
+    const images = rawImages.filter(img => !isVideoUrl(img))
+    
+    // Build final sorted array: video (optional) + up to 4 images
+    const sortedImages: string[] = []
+    if (video) {
+      sortedImages.push(video) // slot 0: video
+    }
+    // Fill slots 1-4 with images (up to 4)
+    sortedImages.push(...images.slice(0, 4))
+
+    // Main media is required — block submission if empty
+    if (sortedImages.length === 0) {
+      toast.error('Please add at least one image or video before submitting.')
       return
     }
 
@@ -160,7 +181,7 @@ export default function AdminPage() {
       const productData = {
         name: form.name,
         price: parseFloat(form.price),
-        images: form.images.filter(img => img.trim() !== ""),
+        images: sortedImages,
         category: form.category,
         sizes: form.sizes,
         rating: parseFloat(form.rating),
