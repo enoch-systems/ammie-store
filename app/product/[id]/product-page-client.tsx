@@ -1,16 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import dynamic from "next/dynamic"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play, Pause, Maximize2 } from "lucide-react"
+import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play } from "lucide-react"
 import { Header } from "@/components/boty/header"
 import { Footer } from "@/components/boty/footer"
 import { useCart } from "@/components/boty/cart-context"
 import { supabase, type Product } from "@/lib/supabase"
 import { getOptimizedProductImage } from "@/lib/image-utils"
-import { isVideoUrl, getOptimizedVideoUrl, getHlsVideoUrl, getSafeVideoUrl, getVideoPosterUrl, getConnectionQuality, isDataSaverMode } from "@/lib/cloudinary"
+import { isVideoUrl, getSafeVideoUrl } from "@/lib/cloudinary"
+import { ThumbnailVideo } from "./components/thumbnail-video"
 
 const benefits = [
   { icon: Leaf, label: "100% Human Hair" },
@@ -21,256 +23,21 @@ const benefits = [
 
 type AccordionSection = "details" | "howToUse" | "ingredients" | "delivery"
 
-// ── Small self-contained thumbnail video (shows a real frame, no image-optimizer dependency) ──
-function ThumbnailVideo({ videoUrl, posterUrl }: { videoUrl: string; posterUrl?: string }) {
-  const vidRef = useRef<HTMLVideoElement | null>(null)
-  const [thumbnail, setThumbnail] = useState<string | null>(null)
-  const [ready, setReady] = useState(false)
-  const safeUrl = getSafeVideoUrl(videoUrl)
-
-  useEffect(() => {
-    const vid = vidRef.current
-    if (!vid) return
-
-    let captured = false
-
-    const captureFrame = () => {
-      if (captured) return
-      try {
-        if (vid.readyState < 2) {
-          setTimeout(() => captureFrame(), 300)
-          return
-        }
-        const canvas = document.createElement('canvas')
-        canvas.width = 160
-        canvas.height = 120
-        const ctx = canvas.getContext('2d')
-        if (!ctx) { setReady(true); return }
-        ctx.drawImage(vid, 0, 0, 160, 120)
-        setThumbnail(canvas.toDataURL('image/jpeg', 0.8))
-        captured = true
-        setReady(true)
-      } catch {
-        setReady(true)
-      }
-    }
-
-    const onCanPlay = () => { vid.currentTime = 0.1 }
-    const onSeeked = () => captureFrame()
-    const onError = () => setReady(true)
-    const onLoaded = () => { if (vid.readyState >= 2) vid.currentTime = 0.1 }
-
-    vid.addEventListener('canplay', onCanPlay)
-    vid.addEventListener('seeked', onSeeked)
-    vid.addEventListener('error', onError)
-    vid.addEventListener('loadeddata', onLoaded)
-    vid.load()
-
-    const timeout = setTimeout(() => !captured && captureFrame(), 3000)
-    return () => {
-      vid.removeEventListener('canplay', onCanPlay)
-      vid.removeEventListener('seeked', onSeeked)
-      vid.removeEventListener('error', onError)
-      vid.removeEventListener('loadeddata', onLoaded)
-      clearTimeout(timeout)
-    }
-  }, [safeUrl])
-
-  if (thumbnail) return <img src={thumbnail} alt="" className="w-full h-full object-cover" />
-  if (posterUrl) return <img src={posterUrl} alt="" className="w-full h-full object-cover" />
-  if (!ready) return <div className="w-full h-full bg-muted flex items-center justify-center"><Play className="w-6 h-6 text-muted-foreground" fill="currentColor" /></div>
-
-  return (
-    <video
-      ref={vidRef}
-      src={videoUrl}
-      muted
-      playsInline
-      preload="auto"
-      crossOrigin="anonymous"
-      className="absolute opacity-0 pointer-events-none"
-      style={{ width: 1, height: 1 }}
-    />
-  )
-}
-
-// ── HLS Video Player with Adaptive Bitrate Streaming ──
-//
-// Uses hls.js to play HLS streams from Cloudinary with automatic
-// quality switching based on real-time network bandwidth.
-//
-// Behavior by connection type:
-//   - 2G / Data Saver: Shows poster only, no video (saves data)
-//   - 3G: HLS with ABR, starts at low quality
-//   - 4G/WiFi: HLS with ABR, starts at high quality
-//   - Fallback: MP4 if HLS fails (e.g. very old browser)
-function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; posterUrl: string; alt: string }) {
-  const [playing, setPlaying] = useState(false)
-  const [hasInteracted, setHasInteracted] = useState(false)
-  const [error, setError] = useState(false)
-  const [dataSaverSkipped, setDataSaverSkipped] = useState(false)
-  const vidRef = useRef<HTMLVideoElement | null>(null)
-  const hlsRef = useRef<any>(null)
-  const safeVideoUrl = getSafeVideoUrl(videoUrl)
-  const hlsVideoUrl = getHlsVideoUrl(videoUrl)
-  const quality = getConnectionQuality()
-  const saveData = isDataSaverMode()
-
-  // Determine if we should skip video due to slow connection or data saver
-  const shouldSkipVideo = quality === 'slow' || saveData
-
-  // Initialize hls.js when user clicks play
-  const initHls = async () => {
-    if (hlsRef.current) return
-
-    try {
-      const Hls = (await import('hls.js')).default
-
-      if (!Hls.isSupported()) {
-        // HLS not supported — fall back to native MP4
-        const vid = vidRef.current
-        if (!vid) return
-        vid.src = safeVideoUrl
-        try { await vid.play(); setPlaying(true) } catch { setError(true) }
-        return
-      }
-
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        // Start at lowest quality for slow connections, highest for fast
-        startLevel: quality === 'fast' ? -1 : 0, // -1 = auto, 0 = lowest
-        // ABR settings — more aggressive for slow connections
-        abrEwmaDefaultEstimate: quality === 'medium' ? 500000 : 2000000, // 500kbps / 2mbps
-        abrBandWidthFactor: quality === 'medium' ? 0.8 : 0.9,
-        abrBandWidthUpFactor: quality === 'medium' ? 0.7 : 0.8,
-      })
-
-      hls.loadSource(hlsVideoUrl)
-      hls.attachMedia(vidRef.current!)
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        hlsRef.current = hls
-        const vid = vidRef.current
-        if (vid) {
-          vid.play().then(() => setPlaying(true)).catch(() => setError(true))
-        }
-      })
-
-      hls.on(Hls.Events.ERROR, (event: any, data: any) => {
-        console.error('HLS error:', data)
-        if (data.fatal) {
-          // HLS failed — fall back to MP4
-          hls.destroy()
-          hlsRef.current = null
-          const vid = vidRef.current
-          if (vid) {
-            vid.src = safeVideoUrl
-            vid.play().then(() => setPlaying(true)).catch(() => setError(true))
-          }
-        }
-      })
-
-    } catch {
-      // hls.js failed to load — fall back to native MP4
-      const vid = vidRef.current
-      if (!vid) return
-      vid.src = safeVideoUrl
-      try { await vid.play(); setPlaying(true) } catch { setError(true) }
-    }
-  }
-
-  const handlePlay = () => {
-    setHasInteracted(true)
-    setError(false)
-
-    // Connection-aware: allow play even if data saver is on,
-    // but show a warning that data will be consumed
-    setDataSaverSkipped(false)
-    initHls()
-  }
-
-  const handlePause = () => {
-    const vid = vidRef.current
-    if (vid) vid.pause()
-    setPlaying(false)
-  }
-
-  // Clean up hls.js on unmount
-  useEffect(() => {
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
-    }
-  }, [])
-
-  // On slow connection or data saver, show poster only with appropriate message
-  if (shouldSkipVideo && !hasInteracted) {
-    return (
-      <div className="relative w-full h-full">
-        <Image src={posterUrl} alt={alt} fill sizes="50vw" className="object-cover" priority />
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/30">
-          <button
-            onClick={handlePlay}
-            className="mb-3 w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg hover:bg-white transition"
-          >
-            <Play className="w-7 h-7 text-foreground ml-0.5" fill="currentColor" />
-          </button>
-          <p className="text-white text-xs text-center px-4 max-w-[200px]">
-            {saveData
-              ? "Data Saver mode — tap to play (may use ~50MB)"
-              : "Slow connection detected — tap for lower quality video"}
-          </p>
-        </div>
+// Dynamically import the VideoPlayer — only loaded when a product has videos.
+// This saves ~40KB (hls.js + player component) from the initial bundle
+// for products without video content.
+const VideoPlayer = dynamic(
+  () => import("./components/video-player").then((mod) => mod.VideoPlayer),
+  {
+    // Show a loading skeleton while the video player chunk downloads
+    loading: () => (
+      <div className="w-full h-full min-h-[400px] bg-muted flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
-    )
-  }
-
-  return (
-    <div className="relative w-full h-full">
-      {/* Thumbnail overlay before interaction */}
-      {!hasInteracted && !error && (
-        <Image src={posterUrl} alt={alt} fill sizes="50vw" className="object-cover" priority />
-      )}
-      
-      {/* Error state */}
-      {error && (
-        <div className="absolute inset-0 z-20 bg-black/40 flex items-center justify-center">
-          <p className="text-white text-sm">Video unavailable</p>
-        </div>
-      )}
-      
-      {/* Play button */}
-      {!hasInteracted && !error && !shouldSkipVideo && (
-        <button
-          onClick={handlePlay}
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/10 hover:bg-black/20 transition"
-        >
-          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-            <Play className="w-7 h-7 text-foreground ml-0.5" fill="currentColor" />
-          </div>
-        </button>
-      )}
-      
-      {/* Video element — hls.js attaches to this */}
-      <video
-        ref={vidRef}
-        className={`w-full h-full object-cover ${hasInteracted && !error && !shouldSkipVideo ? 'opacity-100' : 'opacity-0'}`}
-        preload="metadata"
-        playsInline
-        loop={false}
-        muted={false}
-        controls={hasInteracted && !error}
-        crossOrigin="anonymous"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onError={() => { console.error('Video error for:', safeVideoUrl); setError(true); setPlaying(false) }}
-      />
-    </div>
-  )
-}
+    ),
+    ssr: false, // Video player is client-only (needs browser APIs for hls.js)
+  },
+)
 
 interface ProductPageClientProps {
   productId: string
