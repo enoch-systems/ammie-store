@@ -161,11 +161,15 @@ export default function AdminPage() {
       //   - Max 1 video + 4 images
       //   - If no video, all 5 slots can be images
       const rawImages = form.images.filter(img => img.trim() !== "")
+      console.log('Step 1: Raw images count:', rawImages.length)
+      
       const { isVideoUrl, getVideoPosterUrl } = await import('@/lib/cloudinary')
+      console.log('Step 2: Cloudinary imported')
       
       // Separate video from images
       const video = rawImages.find(img => isVideoUrl(img))
       const images = rawImages.filter(img => !isVideoUrl(img))
+      console.log('Step 3: Video found:', !!video, 'Images count:', images.length)
       
       // Build final sorted array: video (optional) + up to 4 images
       const sortedImages: string[] = []
@@ -174,6 +178,7 @@ export default function AdminPage() {
       }
       // Fill slots 1-4 with images (up to 4)
       sortedImages.push(...images.slice(0, 4))
+      console.log('Step 4: Sorted images count:', sortedImages.length)
 
       // Main media is required — block submission if empty
       if (sortedImages.length === 0) {
@@ -193,54 +198,76 @@ export default function AdminPage() {
         badge: form.badge || null,
         description: form.description || getProductDescription(form.name),
       }
-
+      console.log('Step 5: Product data built')
 
       const client = createClientBrowser()
+      console.log('Step 6: Client created')
 
       if (editingId) {
+        console.log('Step 7a: Updating product', editingId)
         // Update existing product
         const { error } = await client
           .from('products')
           .update(productData)
           .eq('id', editingId)
 
-        if (error) throw error
+        if (error) {
+          console.log('Step 8a: Update error:', error)
+          throw error
+        }
+        console.log('Step 9a: Update successful')
         toast.success(`Product "${form.name}" updated successfully!`)
 
         // Trigger ISR revalidation so the product page refreshes instantly
         revalidateProductPage(editingId)
       } else {
+        console.log('Step 7b: Inserting new product')
         // Add new product
         const { error } = await client
           .from('products')
           .insert([productData])
 
-        if (error) throw error
+        if (error) {
+          console.log('Step 8b: Insert error:', error)
+          throw error
+        }
+        console.log('Step 9b: Insert successful')
         toast.success(`Product "${form.name}" added successfully!`)
       }
 
+      console.log('Step 10: Resetting form')
       resetForm()
-    } catch (error: any) {
-      // Supabase's PostgrestError has message/details/hint/code, but they
-      // don't always show up when you console.error the raw object (some
-      // bundlers/overlays print it as {}). Pull the fields out explicitly
-      // so the real cause is visible instead of an empty object.
-      const message = error?.message || error?.error_description || 'Unknown error'
-      const details = error?.details ? ` — ${error.details}` : ''
-      const hint = error?.hint ? ` (hint: ${error.hint})` : ''
+    } catch (error) {
+      // Log the raw error FIRST before any processing
+      console.error('=== RAW ERROR (no processing) ===')
+      console.error('error:', error)
+      console.error('typeof error:', typeof error)
+      console.error('error === null:', error === null)
+      console.error('error === undefined:', error === undefined)
+      console.error('JSON.stringify(error):', JSON.stringify(error))
+      console.error('=== END RAW ERROR ===')
       
-      // Log the full error object to help debug issues
-      console.error('Error saving product:', {
-        message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        raw: error,
-        errorType: error?.constructor?.name,
-        errorKeys: error ? Object.keys(error) : [],
-        // Also log the product data to see what was being saved
-        productData: JSON.stringify(productData, null, 2),
-      })
+      // Now process the error
+      const errorAny = error as any
+      const message = errorAny?.message || errorAny?.error_description || 'Unknown error'
+      const details = errorAny?.details ? ` — ${errorAny.details}` : ''
+      const hint = errorAny?.hint ? ` (hint: ${errorAny.hint})` : ''
+      
+      // Comprehensive error logging - log each field separately to avoid
+      // bundler/overlay issues with object serialization
+      console.error('=== Error saving product ===')
+      console.error('Message:', message)
+      console.error('Details:', errorAny?.details)
+      console.error('Hint:', errorAny?.hint)
+      console.error('Code:', errorAny?.code)
+      console.error('Error type:', errorAny?.constructor?.name)
+      console.error('Error keys:', errorAny ? Object.keys(errorAny) : [])
+      console.error('Is Error instance:', error instanceof Error)
+      console.error('String representation:', String(error))
+      console.error('Stack:', errorAny?.stack)
+      console.error('Product data:', JSON.stringify(productData, null, 2))
+      console.error('Full error object:', errorAny)
+      console.error('=== End error ===')
       
       toast.error(`Failed to save product: ${message}${details}${hint}`)
     }
