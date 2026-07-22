@@ -935,9 +935,7 @@ Proprietary — All rights reserved. This project is confidential and intended f
 **Ammie N — Premium Hair & Extensions**
 
 - Website: https://www.ammien.shop
-- Email: support@ammien.shop
 - WhatsApp: +234 903 156 0905
 
 ---
 
-*Built with ❤️ using Next.js, Supabase, and Cloudinary*
