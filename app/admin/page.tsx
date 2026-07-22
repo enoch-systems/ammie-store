@@ -223,13 +223,18 @@ export default function AdminPage() {
       const message = error?.message || error?.error_description || 'Unknown error'
       const details = error?.details ? ` — ${error.details}` : ''
       const hint = error?.hint ? ` (hint: ${error.hint})` : ''
+      
+      // Log the full error object to help debug issues
       console.error('Error saving product:', {
         message,
         details: error?.details,
         hint: error?.hint,
         code: error?.code,
         raw: error,
+        // Also log the product data to see what was being saved
+        productData: JSON.stringify(productData, null, 2),
       })
+      
       toast.error(`Failed to save product: ${message}${details}${hint}`)
     }
   }
