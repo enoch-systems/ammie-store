@@ -14,8 +14,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
-import { useCart } from "./cart-context"
-import { createClientBrowser } from "@/lib/supabase/client"
+import { useCart } from "@/components/providers/cart-context"
+import { createClientBrowser } from "@/lib/supabase"
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false)

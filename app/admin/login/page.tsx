@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { createClientBrowser } from "@/lib/supabase/client"
+import { createClientBrowser } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 

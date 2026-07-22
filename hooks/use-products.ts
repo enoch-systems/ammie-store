@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { supabase, type Product } from "@/lib/supabase"
-import { getOptimizedProductImage } from "@/lib/image-utils"
+import { getOptimizedProductImage } from "@/lib/cloudinary/image-utils"
 
 export interface ShopProduct {
   id: string

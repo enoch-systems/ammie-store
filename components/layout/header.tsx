@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Menu, X, ShoppingBag, Search, LogOut } from "lucide-react"
 import { CartDrawer } from "./cart-drawer"
-import { useCart } from "./cart-context"
-import { useSearchBlur } from "./search-blur-context"
+import { useCart } from "@/components/providers/cart-context"
+import { useSearchBlur } from "@/components/providers/search-blur-context"
 
 export function Header({ variant = "default", onLogoutClick }: { variant?: "default" | "admin"; onLogoutClick?: () => void } = {}) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)

@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, ReactNode } from "react"
-import { SearchOverlay } from "./search-overlay"
+import { SearchOverlay } from "@/components/layout/search-overlay"
 
 interface SearchBlurContextType {
   isSearchOpen: boolean

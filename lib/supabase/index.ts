@@ -7,15 +7,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-// Use the SSR-aware browser client so the auth session/cookies are
-// properly shared with the rest of the @supabase/ssr setup.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-})
+// Browser client factory for client components
+export const createClientBrowser = () => {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  })
+}
+
+// Default browser client instance
+export const supabase = createClientBrowser()
 
 // Database types (simplified)
 export interface Product {

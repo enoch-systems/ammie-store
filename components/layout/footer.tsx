@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { PolicyModal } from "@/components/boty/policy-modal"
+import { PolicyModal } from "@/components/shared/policy-modal"
 
 type ModalType = "privacy" | "terms" | "shipping"
 

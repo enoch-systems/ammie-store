@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
 import { Printer, Copy, Check, Clock, ChevronRight, Loader2 } from "lucide-react"
-import { createClientBrowser } from "@/lib/supabase/client"
+import { createClientBrowser } from "@/lib/supabase"
 
 // ── Types ──
 

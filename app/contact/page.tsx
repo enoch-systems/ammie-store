@@ -1,7 +1,7 @@
 "use client"
 
-import { Header } from "@/components/boty/header"
-import { Footer } from "@/components/boty/footer"
+import { Header } from "@/components/layout/header"
+import { Footer } from "@/components/layout/footer"
 import { Phone } from "lucide-react"
 
 export default function ContactPage() {

@@ -17,7 +17,7 @@ import { notFound } from "next/navigation"
 import { createClientServer } from "@/lib/supabase/server"
 import { ProductPageClient } from "./product-page-client"
 import { ProductPageSkeleton } from "./product-page-skeleton"
-import { getOptimizedProductImage } from "@/lib/image-utils"
+import { getOptimizedProductImage } from "@/lib/cloudinary/image-utils"
 
 // ISR: Revalidate this page every 60 seconds
 // Also revalidated on-demand via POST /api/revalidate after admin updates

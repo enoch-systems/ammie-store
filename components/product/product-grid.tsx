@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ShoppingBag } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
-import { useCart } from "./cart-context"
+import { useCart } from "@/components/providers/cart-context"
 import { useLatestProducts } from "@/hooks/use-products"
 import { supabase } from "@/lib/supabase"
 

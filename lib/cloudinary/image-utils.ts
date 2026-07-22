@@ -7,7 +7,7 @@
  * Non-Cloudinary URLs are returned unchanged.
  */
 
-import { isVideoUrl, getVideoPosterUrl } from "./cloudinary"
+import { isVideoUrl, getVideoPosterUrl } from "./index"
 
 const CLOUDINARY_BASE = "res.cloudinary.com"
 

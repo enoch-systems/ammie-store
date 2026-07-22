@@ -2,12 +2,12 @@ import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { CartProvider } from '@/components/boty/cart-context'
-import { SearchBlurProvider } from '@/components/boty/search-blur-context'
-import { WhatsAppButton } from '@/components/boty/whatsapp-button'
+import { CartProvider } from '@/components/providers/cart-context'
+import { SearchBlurProvider } from '@/components/providers/search-blur-context'
+import { WhatsAppButton } from '@/components/layout/whatsapp-button'
 import { Toaster } from '@/components/ui/sonner'
-import { QueryProvider } from '@/components/boty/query-provider'
-import { LenisProvider } from '@/components/boty/lenis-provider'
+import { QueryProvider } from '@/components/providers/query-provider'
+import { LenisProvider } from '@/components/providers/lenis-provider'
 import './globals.css'
 
 const dmSans = DM_Sans({ 

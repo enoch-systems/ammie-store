@@ -1,5 +1,5 @@
-import { Header } from "@/components/boty/header"
-import { Footer } from "@/components/boty/footer"
+import { Header } from "@/components/layout/header"
+import { Footer } from "@/components/layout/footer"
 import { ChevronDown, Search } from "lucide-react"
 
 const faqCategories = [
