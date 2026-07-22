@@ -79,14 +79,18 @@ export function getOptimizedProductImage(
     full: 2000,
   }
   
+  const width = widthMap[size]
+  
   // If it's a video URL, return a video poster frame instead of the video itself.
-  // getVideoPosterUrl() handles stripping stale transforms and adding poster-specific ones.
-  // We pass the desired width so the poster is sized correctly.
   if (isVideoUrl(url)) {
-    return getVideoPosterUrl(url, widthMap[size])
+    console.log("[DEBUG getOptimizedProductImage] video url detected:", url.substring(0, 80) + "...", "size:", size, "width:", width)
+    const poster = getVideoPosterUrl(url, width)
+    console.log("[DEBUG getOptimizedProductImage] poster result:", poster.substring(0, 120) + "...")
+    return poster
   }
   
-  return getOptimizedImageUrl(url, widthMap[size])
+  console.log("[DEBUG getOptimizedProductImage] NOT a video URL:", url.substring(0, 80) + "...", "isVideoUrl returned:", isVideoUrl(url))
+  return getOptimizedImageUrl(url, width)
 }
 
 /**
