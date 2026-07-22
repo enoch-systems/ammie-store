@@ -1,25 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
-}
-
-// Browser client factory for client components
-export const createClientBrowser = () => {
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  })
-}
-
-// Default browser client instance
-export const supabase = createClientBrowser()
+// Re-export the singleton client from client.ts
+export { supabase, createClientBrowser } from './client'
 
 // Database types (simplified)
 export interface Product {
@@ -48,3 +28,6 @@ export interface ProductInsert {
   review_count?: number
   description?: string
 }
+
+// Alias for ProductInput - used for form validation and service functions
+export type ProductInput = ProductInsert

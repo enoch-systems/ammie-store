@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Plus, X, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, X, Search, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Header } from "@/components/layout/header"
 import { ConfirmationModal } from "@/components/shared/confirmation-modal"
-import { type Product } from "@/lib/supabase"
-import { createClientBrowser } from "@/lib/supabase"
+import { supabase, type Product } from "@/lib/supabase"
 import type { ProductForm } from "@/features/admin/components/types"
 import { emptyForm } from "@/features/admin/components/types"
 import ImageGallery from "@/features/admin/components/image-gallery"
@@ -15,9 +15,28 @@ import PricingForm from "@/features/admin/components/pricing-form"
 import RatingForm from "@/features/admin/components/rating-form"
 import ProductGrid from "@/features/admin/components/product-grid"
 import { getProductDescription } from "@/lib/services/product-descriptions"
+import { validateProduct, type ValidationResult } from "@/lib/utils/product-validation"
+import { getProducts, createProduct, updateProduct, deleteProduct } from "@/lib/services/products"
+
+// Structured logging helper
+const log = {
+  debug: (message: string, data?: any) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug(`[AdminPage] ${message}`, data || '')
+    }
+  },
+  error: (message: string, error?: any) => {
+    console.error(`[AdminPage] ${message}`, error || '')
+  },
+  info: (message: string, data?: any) => {
+    console.info(`[AdminPage] ${message}`, data || '')
+  }
+}
 
 export default function AdminPage() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
+  const [authChecking, setAuthChecking] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -28,12 +47,65 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const descriptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Auth guard: redirect to login if no session ──
+  useEffect(() => {
+    let mounted = true
+    let retries = 0
+    const MAX_RETRIES = 5
+
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!mounted) return
+
+      if (session) {
+        log.debug('Auth session found', { userId: session.user.id })
+        setAuthChecking(false)
+        return
+      }
+
+      // Session not available yet — retry a few times (handles race condition after login)
+      retries++
+      if (retries < MAX_RETRIES) {
+        log.debug(`Auth retry ${retries}/${MAX_RETRIES}...`)
+        setTimeout(checkAuth, 500)
+        return
+      }
+
+      // Still no session after retries — redirect to login
+      log.debug('No auth session after retries, redirecting to login')
+      router.replace("/admin/login")
+    }
+
+    checkAuth()
+
+    // Also listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event: string, session: any) => {
+        if (!mounted) return
+        log.debug('Auth state changed', { event, hasSession: !!session })
+        if (event === 'SIGNED_IN' && session) {
+          setAuthChecking(false)
+        } else if (event === 'SIGNED_OUT') {
+          router.replace("/admin/login")
+        }
+      }
+    )
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [router])
 
   useEffect(() => {
     setMounted(true)
-    fetchProducts()
-  }, [])
+    if (!authChecking) {
+      fetchProducts()
+    }
+  }, [authChecking])
 
   // Set a distinct document title for the admin page
   useEffect(() => {
@@ -44,16 +116,8 @@ export default function AdminPage() {
   }, [])
 
   // ── Real-time subscription ──────────────────────────────────────────
-  // Whenever a row is inserted, updated, or deleted in the products table
-  // we update local state immediately — no manual refresh needed.
   useEffect(() => {
-    const client = createClientBrowser()
-
-    // Fetch the full list when a change is detected rather than trying to
-    // surgically insert/update/remove rows, because a payload may reference
-    // a brand-new product we don't have cached yet (INSERT) or may contain
-    // only the changed columns (UPDATE).
-    const channel = client
+    const channel = supabase
       .channel("admin-products-changes")
       .on(
         "postgres_changes",
@@ -65,7 +129,7 @@ export default function AdminPage() {
       .subscribe()
 
     return () => {
-      client.removeChannel(channel)
+      supabase.removeChannel(channel)
     }
   }, [])
 
@@ -73,16 +137,19 @@ export default function AdminPage() {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true)
-      const client = createClientBrowser()
-      const { data, error } = await client
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const result = await getProducts({
+        orderBy: 'created_at',
+        orderDirection: 'desc'
+      })
 
-      if (error) throw error
-      setProducts(data || [])
+      if (result.error) {
+        throw result.error
+      }
+
+      setProducts(result.data)
+      log.debug('Products fetched', { count: result.data.length })
     } catch (error) {
-      console.error('Error fetching products:', error)
+      log.error('Error fetching products', error)
       toast.error('Failed to load products')
     } finally {
       setLoading(false)
@@ -125,15 +192,6 @@ export default function AdminPage() {
     setForm((prev) => ({ ...prev, sizes: newSizes.join(',') } as ProductForm))
   }
 
-  // Reads from `prev` (the latest state at the time this updater actually
-  // runs) instead of the `form` variable captured in this function's
-  // closure. This matters because ImageGallery can call onUpdateImage
-  // multiple times back-to-back in the same event (e.g. filling a
-  // thumbnail AND the main image). If we build newImages from the outer
-  // `form.images` closure, both calls see the same stale array and the
-  // second setForm call overwrites the first one's change. Using the
-  // functional updater with `prev` ensures each call builds on the
-  // actual latest array.
   const updateImage = (index: number, value: string) => {
     setForm((prev) => {
       const newImages = [...prev.images]
@@ -149,127 +207,110 @@ export default function AdminPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Initialize productData early so it's available in catch block for logging
-    let productData: Record<string, any> = {}
+    if (submitting) {
+      log.debug('Submission already in progress, ignoring duplicate submit')
+      return
+    }
+
+    setSubmitting(true)
 
     try {
-      // Sort images before saving: video always first, images fill the rest.
-      // Rule enforcement:
-      //   - If product has a video, it must be the main media (slot 0)
-      //   - Slot 0 is the video poster thumbnail with play icon
-      //   - Slots 1-4 are images only
-      //   - Max 1 video + 4 images
-      //   - If no video, all 5 slots can be images
-      const rawImages = form.images.filter(img => img.trim() !== "")
-      console.log('Step 1: Raw images count:', rawImages.length)
-      
-      const { isVideoUrl, getVideoPosterUrl } = await import('@/lib/cloudinary')
-      console.log('Step 2: Cloudinary imported')
-      
-      // Separate video from images
-      const video = rawImages.find(img => isVideoUrl(img))
-      const images = rawImages.filter(img => !isVideoUrl(img))
-      console.log('Step 3: Video found:', !!video, 'Images count:', images.length)
-      
-      // Build final sorted array: video (optional) + up to 4 images
-      const sortedImages: string[] = []
-      if (video) {
-        sortedImages.push(video) // slot 0: video
-      }
-      // Fill slots 1-4 with images (up to 4)
-      sortedImages.push(...images.slice(0, 4))
-      console.log('Step 4: Sorted images count:', sortedImages.length)
+      log.info('Submitting product form', {
+        editingId,
+        formSnapshot: {
+          name: form.name,
+          price: form.price,
+          category: form.category,
+          images: form.images,
+          rating: form.rating,
+          reviewCount: form.reviewCount,
+          sizes: form.sizes
+        }
+      })
 
-      // Main media is required — block submission if empty
-      if (sortedImages.length === 0) {
-        toast.error('Please add at least one image or video before submitting.')
+      // Validate form data
+      const validationResult: ValidationResult = validateProduct({
+        name: form.name,
+        price: form.price,
+        category: form.category,
+        images: form.images,
+        rating: form.rating,
+        reviewCount: form.reviewCount,
+        sizes: form.sizes,
+        badge: form.badge,
+        description: form.description
+      })
+
+      if (!validationResult.valid) {
+        const errorMessages = validationResult.errors.map(e => `${e.field}: ${e.message}`).join(', ')
+        log.error('Validation failed', { errors: validationResult.errors })
+        toast.error(`Validation failed: ${errorMessages}`)
         return
       }
 
-      // Build productData for saving and logging
-      productData = {
-        name: form.name,
-        price: parseFloat(form.price),
-        images: sortedImages,
-        category: form.category,
-        sizes: form.sizes,
-        rating: parseFloat(form.rating),
-        review_count: parseInt(form.reviewCount),
-        badge: form.badge || null,
-        description: form.description || getProductDescription(form.name),
+      if (!validationResult.data) {
+        log.error('Validation returned valid but no data')
+        toast.error('Validation error. Please try again.')
+        return
       }
-      console.log('Step 5: Product data built')
 
-      const client = createClientBrowser()
-      console.log('Step 6: Client created')
+      log.info('Validation passed', { validatedData: validationResult.data })
 
+      // Submit to Supabase
       if (editingId) {
-        console.log('Step 7a: Updating product', editingId)
-        // Update existing product
-        const { error } = await client
-          .from('products')
-          .update(productData)
-          .eq('id', editingId)
+        log.info('Updating existing product', { productId: editingId })
+        
+        const { data, error } = await updateProduct(editingId, validationResult.data)
 
         if (error) {
-          console.log('Step 8a: Update error:', error)
+          log.error('Update failed', { error, productId: editingId })
           throw error
         }
-        console.log('Step 9a: Update successful')
-        toast.success(`Product "${form.name}" updated successfully!`)
 
-        // Trigger ISR revalidation so the product page refreshes instantly
+        log.info('Product updated successfully', { productId: editingId, data })
+        toast.success(`Product "${validationResult.data.name}" updated successfully!`)
+
+        // Trigger ISR revalidation
         revalidateProductPage(editingId)
       } else {
-        console.log('Step 7b: Inserting new product')
-        // Add new product
-        const { error } = await client
-          .from('products')
-          .insert([productData])
+        log.info('Creating new product')
+        
+        const { data, error } = await createProduct(validationResult.data)
 
         if (error) {
-          console.log('Step 8b: Insert error:', error)
+          log.error('Create failed', { error })
           throw error
         }
-        console.log('Step 9b: Insert successful')
-        toast.success(`Product "${form.name}" added successfully!`)
+
+        log.info('Product created successfully', { productId: data?.id })
+        toast.success(`Product "${validationResult.data.name}" added successfully!`)
       }
 
-      console.log('Step 10: Resetting form')
+      log.info('Resetting form after successful submission')
       resetForm()
     } catch (error) {
-      // Log the raw error FIRST before any processing
-      console.error('=== RAW ERROR (no processing) ===')
-      console.error('error:', error)
-      console.error('typeof error:', typeof error)
-      console.error('error === null:', error === null)
-      console.error('error === undefined:', error === undefined)
-      console.error('JSON.stringify(error):', JSON.stringify(error))
-      console.error('=== END RAW ERROR ===')
-      
-      // Now process the error
+      // Structured error logging
+      log.error('Failed to save product', {
+        error,
+        editingId,
+        formData: {
+          name: form.name,
+          price: form.price,
+          category: form.category,
+          images: form.images,
+          rating: form.rating,
+          reviewCount: form.reviewCount
+        }
+      })
+
       const errorAny = error as any
       const message = errorAny?.message || errorAny?.error_description || 'Unknown error'
       const details = errorAny?.details ? ` — ${errorAny.details}` : ''
       const hint = errorAny?.hint ? ` (hint: ${errorAny.hint})` : ''
       
-      // Comprehensive error logging - log each field separately to avoid
-      // bundler/overlay issues with object serialization
-      console.error('=== Error saving product ===')
-      console.error('Message:', message)
-      console.error('Details:', errorAny?.details)
-      console.error('Hint:', errorAny?.hint)
-      console.error('Code:', errorAny?.code)
-      console.error('Error type:', errorAny?.constructor?.name)
-      console.error('Error keys:', errorAny ? Object.keys(errorAny) : [])
-      console.error('Is Error instance:', error instanceof Error)
-      console.error('String representation:', String(error))
-      console.error('Stack:', errorAny?.stack)
-      console.error('Product data:', JSON.stringify(productData, null, 2))
-      console.error('Full error object:', errorAny)
-      console.error('=== End error ===')
-      
       toast.error(`Failed to save product: ${message}${details}${hint}`)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -278,10 +319,8 @@ export default function AdminPage() {
     setEditingId(null)
     setSelectedImageIndex(0)
     setShowAddForm(false)
-    // Previously missing: without this, a leftover `sizes` array from the
-    // edit session you just finished could bleed into whatever you open
-    // next, before fresh data has a chance to overwrite it.
     setSizes([])
+    log.debug('Form reset')
   }
 
   const openAddForm = () => {
@@ -291,6 +330,7 @@ export default function AdminPage() {
     setSizes([])
     setShowAddForm(true)
     window.scrollTo({ top: 0, behavior: "smooth" })
+    log.debug('Add form opened')
   }
 
   const editProduct = (product: Product) => {
@@ -314,19 +354,16 @@ export default function AdminPage() {
     setSelectedImageIndex(0)
     setShowAddForm(true)
     window.scrollTo({ top: 0, behavior: "smooth" })
+    log.debug('Edit form opened', { productId: product.id, productName: product.name })
   }
 
   const handleLogout = async () => {
-    const client = createClientBrowser()
-    await client.auth.signOut()
+    await supabase.auth.signOut()
     window.location.href = "/admin/login"
   }
 
   /**
    * Trigger on-demand ISR revalidation for a product page.
-   * After updating a product (e.g. uploading a new video), this ensures
-   * the statically-generated product page is refreshed immediately
-   * without requiring a full rebuild.
    */
   const revalidateProductPage = async (productId: string) => {
     try {
@@ -335,8 +372,9 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: `/product/${productId}` }),
       })
+      log.debug('ISR revalidation triggered', { productId })
     } catch (error) {
-      console.error('Revalidation request failed:', error)
+      log.error('Revalidation request failed', { error, productId })
       // Non-critical — the page will still revalidate on its 60s ISR interval
     }
   }
@@ -345,23 +383,23 @@ export default function AdminPage() {
     if (!productToDelete) return
 
     try {
-      const client = createClientBrowser()
-      const { error } = await client
-        .from('products')
-        .delete()
-        .eq('id', productToDelete.id)
+      const { error } = await deleteProduct(productToDelete.id)
 
-      if (error) throw error
+      if (error) {
+        log.error('Delete failed', { error, productId: productToDelete.id })
+        throw error
+      }
 
+      log.info('Product deleted successfully', { productId: productToDelete.id })
       toast.success(`Product "${productToDelete.name}" deleted permanently!`)
       setProductToDelete(null)
     } catch (error) {
-      console.error('Error deleting product:', error)
+      log.error('Error deleting product', { error, productId: productToDelete?.id })
       toast.error('Failed to delete product')
     }
   }
 
-  const deleteProduct = (id: string) => {
+  const deleteProductWrapper = (id: string) => {
     const product = products.find(p => p.id === id)
     if (product) {
       setProductToDelete({ id: product.id, name: product.name })
@@ -376,7 +414,17 @@ export default function AdminPage() {
       )
     : products
 
-  if (!mounted) return null
+  // Show loading spinner while checking auth
+  if (!mounted || authChecking) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Verifying access...</p>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen overflow-x-hidden">
@@ -483,14 +531,16 @@ export default function AdminPage() {
                   <div className="flex flex-col sm:flex-row gap-4 sm:gap-4 pt-6">
                     <button
                       type="submit"
-                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 sm:px-8 py-3.5 sm:py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 boty-shadow cursor-pointer"
+                      disabled={submitting}
+                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 sm:px-8 py-3.5 sm:py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 boty-shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {editingId ? "Update Product" : "Add Product"}
+                      {submitting ? 'Saving...' : (editingId ? "Update Product" : "Add Product")}
                     </button>
                     <button
                       type="button"
                       onClick={resetForm}
-                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-2 bg-transparent border border-foreground/20 text-foreground px-6 sm:px-8 py-3.5 sm:py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-foreground/5 cursor-pointer"
+                      disabled={submitting}
+                      className="w-full sm:flex-1 inline-flex items-center justify-center gap-2 bg-transparent border border-foreground/20 text-foreground px-6 sm:px-8 py-3.5 sm:py-4 rounded-full text-sm tracking-wide boty-transition hover:bg-foreground/5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </button>
@@ -513,7 +563,7 @@ export default function AdminPage() {
               <ProductGrid
                 products={filteredProducts}
                 onEdit={editProduct}
-                onDelete={deleteProduct}
+                onDelete={deleteProductWrapper}
               />
             )}
           </section>

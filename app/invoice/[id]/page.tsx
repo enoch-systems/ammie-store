@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import Image from "next/image"
 import { Printer, Copy, Check, Clock, ChevronRight, Loader2 } from "lucide-react"
-import { createClientBrowser } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 // ── Types ──
 
@@ -76,14 +76,13 @@ export default function InvoicePage() {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const client = createClientBrowser()
         const urlParams = new URLSearchParams(window.location.search)
         const token = urlParams.get("token")
         const fresh = urlParams.get("fresh")
 
         setIsFreshOrder(fresh === "1")
 
-        let query = client.from("orders").select("*")
+        let query = supabase.from("orders").select("*")
         if (token) {
           query = query.eq("id", params.id).eq("access_token", token)
         } else {
