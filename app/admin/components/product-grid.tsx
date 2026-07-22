@@ -2,7 +2,8 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { Edit3, Trash2, Star } from "lucide-react"
+import { Edit3, Trash2, Star, Play } from "lucide-react"
+import { isVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary"
 import type { Product } from "@/lib/supabase"
 
 interface ProductGridProps {
@@ -18,12 +19,28 @@ export default function ProductGrid({ products, onEdit, onDelete }: ProductGridP
         <div key={product.id} className="group transition-all duration-500 ease-out opacity-100 scale-100">
           <div className="bg-background rounded-2xl sm:rounded-3xl overflow-hidden boty-shadow boty-transition group-hover:scale-[1.02] border border-border/50">
               <div className="relative aspect-square bg-muted overflow-hidden">
-                <Image
-                  src={product.images[0] || "/placeholder.svg"}
-                  alt={product.name}
-                  fill
-                  className="object-cover boty-transition group-hover:scale-105"
-                />
+                {isVideoUrl(product.images[0]) ? (
+                  <>
+                    <Image
+                      src={getVideoPosterUrl(product.images[0])}
+                      alt={product.name}
+                      fill
+                      className="object-cover boty-transition group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/15 pointer-events-none">
+                      <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-sm">
+                        <Play className="w-4 h-4 text-foreground ml-0.5" fill="currentColor" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <Image
+                    src={product.images[0] || "/placeholder.svg"}
+                    alt={product.name}
+                    fill
+                    className="object-cover boty-transition group-hover:scale-105"
+                  />
+                )}
               {product.badge && (
                 <span className={`absolute top-2 sm:top-4 left-2 sm:left-4 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs tracking-wide backdrop-blur-sm bg-white/70 ${
                   product.badge === "Sale" ? "text-destructive" : product.badge === "Bestseller" ? "text-primary" : "text-foreground"

@@ -264,12 +264,21 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
           >
             {images[0] ? (
               <>
-                <Image
-                  src={transformImageUrl(images[0], "w_150", "f_auto", "q_auto")}
-                  alt="Thumbnail 1 (main image)"
-                  fill
-                  className="object-cover"
-                />
+                {isVideoUrl(images[0]) ? (
+                  <Image
+                    src={getVideoPosterUrl(images[0])}
+                    alt="Thumbnail 1 (main image)"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={transformImageUrl(images[0], "w_150", "f_auto", "q_auto")}
+                    alt="Thumbnail 1 (main image)"
+                    fill
+                    className="object-cover"
+                  />
+                )}
                 <button
                   type="button"
                   onClick={(e) => handleDelete(0, e)}
