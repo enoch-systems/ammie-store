@@ -56,8 +56,9 @@ async function uploadToCloudinary(
         upload_preset: uploadPreset,
         folder: "ammie-store/products",
         resource_type: resourceType,
-        // Let Cloudinary auto-detect and convert formats
-        format: resourceType === "video" ? "mp4" : undefined,
+        // Note: `format` is not allowed in unsigned uploads.
+        // Cloudinary auto-detects the format from the uploaded file.
+        // The `f_mp4` transform is applied in the returned URL instead.
       }),
     },
   )
