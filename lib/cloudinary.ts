@@ -17,26 +17,58 @@ export function isVideoUrl(url: string): boolean {
 
 /**
  * Given a Cloudinary video URL, returns a static poster frame URL.
- * 
- * Changes /video/upload/ to /image/upload/, adds:
- *   - so_1.0  → capture frame at 1 second (near the beginning)
- *   - f_auto  → automatic format selection (WebP/AVIF)
- *   - q_auto  → automatic quality optimization
  *
- * This generates a thumbnail from the video itself with no additional
- * storage cost. The same URL is used across the entire app: homepage,
- * shop page, product page, and admin panel — a single source of truth.
+ * IMPORTANT: The stored video URL may contain stale transform segments
+ * baked in from the upload pipeline (e.g. w_720,q_auto,sp_hls,f_auto).
+ * These are valid for video delivery but BREAK when we convert to
+ * /image/upload/ — sp_hls is a video-only profile that Cloudinary's
+ * image pipeline can't process.
+ *
+ * This function:
+ *   1. Changes /video/upload/ to /image/upload/
+ *   2. Strips ALL existing transform segments (comma-separated entries
+ *      before the public ID / version number)
+ *   3. Applies only image-appropriate transforms:
+ *      - so_1.0  → capture frame at 1 second (first meaningful frame)
+ *      - w_600   → reasonable thumbnail width
+ *      - f_auto  → automatic format selection (WebP/AVIF)
+ *      - q_auto  → automatic quality optimization
  *
  * The so_1.0 transform ensures the thumbnail is always the same frame
  * (first second) rather than Cloudinary's default (mid-video).
  */
-export function getVideoPosterUrl(videoUrl: string): string {
+export function getVideoPosterUrl(videoUrl: string, width: number = 600): string {
   const lower = videoUrl.toLowerCase()
   const marker = "/video/upload/"
   const idx = lower.indexOf(marker)
   if (idx === -1) return videoUrl
-  
-  return `${videoUrl.slice(0, idx)}/image/upload/so_1.0,f_auto,q_auto/${videoUrl.slice(idx + marker.length)}`
+
+  // Everything before /video/upload/
+  const base = videoUrl.slice(0, idx)
+
+  // Everything after /video/upload/ — may contain stale transforms
+  // like w_720,q_auto,sp_hls,f_auto/v123/product.mp4
+  const afterUpload = videoUrl.slice(idx + marker.length)
+
+  // Strip ALL segments that are transform strings (contain commas).
+  // Cloudinary transforms are comma-separated and end at the next slash.
+  // The public ID starts at the first segment WITHOUT a comma (typically
+  // v1234567 or the folder/filename).
+  const segments = afterUpload.split('/')
+  let publicIdStart = 0
+  for (let i = 0; i < segments.length; i++) {
+    if (!segments[i].includes(',')) {
+      publicIdStart = i
+      break
+    }
+  }
+
+  const cleanPath = segments.slice(publicIdStart).join('/')
+
+  // Build clean poster URL: no stale transforms, only so_1.0 + width + quality
+  // The width parameter is passed from getOptimizedProductImage() which
+  // specifies thumbnail (150), card (600), detail (1200), or full (2000).
+  return `${base}/image/upload/so_1.0,w_${width},f_auto,q_auto/${cleanPath}`
 }
 
 /**

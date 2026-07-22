@@ -59,6 +59,14 @@ export function getOptimizedImageUrl(url: string, width?: number): string {
  * 
  * If the URL is a video, returns the poster frame URL instead so it works
  * safely with next/image and any image-only components.
+ *
+ * The video poster URL from getVideoPosterUrl() already contains:
+ *   - so_1.0 (capture frame at 1 second)
+ *   - w_600  (thumbnail width)
+ *   - f_auto (auto format)
+ *   - q_auto (auto quality)
+ *
+ * For thumbnails, we request a smaller width (w_150) to minimize data.
  */
 export function getOptimizedProductImage(
   url: string,
@@ -71,10 +79,11 @@ export function getOptimizedProductImage(
     full: 2000,
   }
   
-  // If it's a video URL, return a video poster frame instead
+  // If it's a video URL, return a video poster frame instead of the video itself.
+  // getVideoPosterUrl() handles stripping stale transforms and adding poster-specific ones.
+  // We pass the desired width so the poster is sized correctly.
   if (isVideoUrl(url)) {
-    const poster = getVideoPosterUrl(url)
-    return postProcessUrl(poster, widthMap[size])
+    return getVideoPosterUrl(url, widthMap[size])
   }
   
   return getOptimizedImageUrl(url, widthMap[size])
