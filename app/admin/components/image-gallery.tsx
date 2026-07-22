@@ -175,7 +175,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
                 <>
                   {/* Video preview — show poster frame + play icon */}
                   <Image
-                    src={transformImageUrl(getVideoPosterUrl(images[0]), "w_800", "f_auto", "q_auto")}
+                    src={getVideoPosterUrl(images[0])}
                     alt="Product video preview"
                     fill
                     className="object-cover"

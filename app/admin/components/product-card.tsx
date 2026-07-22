@@ -1,7 +1,8 @@
 "use client"
 
 import Image from "next/image"
-import { Star, Edit3, Trash2 } from "lucide-react"
+import { Star, Edit3, Trash2, Play } from "lucide-react"
+import { isVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary"
 import type { ProductForm } from "./types"
 
 interface ProductCardProps {
@@ -15,12 +16,30 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
     <div className="bg-background rounded-3xl overflow-hidden boty-shadow border border-border/50 group">
       <div className="relative aspect-square bg-muted overflow-hidden cursor-pointer">
         {product.images[0] && (
-          <Image
-            src={product.images[0]}
-            alt={product.name}
-            fill
-            className="object-cover"
-          />
+          <>
+            {isVideoUrl(product.images[0]) ? (
+              <Image
+                src={getVideoPosterUrl(product.images[0])}
+                alt={product.name}
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <Image
+                src={product.images[0]}
+                alt={product.name}
+                fill
+                className="object-cover"
+              />
+            )}
+            {isVideoUrl(product.images[0]) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/15 pointer-events-none">
+                <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-sm">
+                  <Play className="w-4 h-4 text-foreground ml-0.5" fill="currentColor" />
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="p-4 cursor-pointer">
