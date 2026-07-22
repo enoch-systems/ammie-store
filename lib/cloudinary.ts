@@ -111,8 +111,122 @@ export function getFullCloudinaryVideoUrl(publicId: string): string {
 }
 
 /**
- * Get a safe video URL that won't break if transformations fail
- * Returns the original URL if optimization fails
+ * Detect the user's connection quality for adaptive video delivery.
+ * Returns a rating based on the Network Information API.
+ *
+ * - 'slow': 2G or slow 3G — use lowest quality, or skip video
+ * - 'medium': 3G or 4G with moderate speed
+ * - 'fast': 4G / WiFi — use highest quality
+ * - 'unknown': API not available — assume medium
+ */
+export function getConnectionQuality(): 'slow' | 'medium' | 'fast' | 'unknown' {
+  if (typeof navigator === 'undefined' || !navigator.connection) {
+    return 'unknown'
+  }
+
+  const conn = navigator.connection
+
+  // Use effectiveType if available (Chrome, Edge, Samsung Internet)
+  if (conn.effectiveType) {
+    switch (conn.effectiveType) {
+      case 'slow-2g':
+      case '2g':
+        return 'slow'
+      case '3g':
+        return 'medium'
+      case '4g':
+        return 'fast'
+    }
+  }
+
+  // Fallback: use downlink speed in Mbps
+  if (conn.downlink !== undefined) {
+    if (conn.downlink < 0.5) return 'slow'      // < 500 Kbps
+    if (conn.downlink < 2) return 'medium'        // 500 Kbps - 2 Mbps
+    return 'fast'                                  // > 2 Mbps
+  }
+
+  return 'unknown'
+}
+
+/**
+ * Check if the user has requested reduced data usage.
+ * Respects the Save-Data header (Chrome, Android browsers).
+ */
+export function isDataSaverMode(): boolean {
+  if (typeof navigator === 'undefined' || !navigator.connection) {
+    return false
+  }
+  return (navigator.connection as any).saveData === true
+}
+
+/**
+ * Get a Cloudinary video URL optimized for HLS adaptive streaming.
+ *
+ * Uses the `sp_hls` (streaming profile HLS) transformation to generate
+ * a master .m3u8 playlist with multiple quality levels (360p, 480p, 720p).
+ * hls.js on the client will automatically select the best quality based
+ * on real-time bandwidth.
+ *
+ * @param videoUrl    The base Cloudinary video URL
+ * @param maxWidth    Maximum video width (default: 720). Lower = less data.
+ * @returns          HLS streaming URL (.m3u8)
+ */
+export function getHlsVideoUrl(videoUrl: string, maxWidth: number = 720): string {
+  if (!videoUrl) return videoUrl
+
+  try {
+    let url = videoUrl
+
+    // If it's just a filename or public ID, construct full Cloudinary URL
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      const fullUrl = getFullCloudinaryVideoUrl(url)
+      if (fullUrl !== url) {
+        url = fullUrl
+      }
+    }
+
+    // Only transform Cloudinary URLs
+    if (!url.includes('/upload/')) return url
+
+    const uploadMarker = '/upload/'
+    const markerIndex = url.indexOf(uploadMarker)
+    if (markerIndex === -1) return url
+
+    const insertAt = markerIndex + uploadMarker.length
+    const afterUpload = url.slice(insertAt)
+
+    // Strip ANY existing transform segment (contains a comma) before the public ID
+    const segments = afterUpload.split('/')
+    let publicIdStart = 0
+    if (segments[0] && segments[0].includes(',')) {
+      publicIdStart = segments[0].length + 1
+    }
+
+    const baseUrl = url.slice(0, insertAt)
+    const cleanPath = afterUpload.slice(publicIdStart)
+
+    // Use HLS streaming profile for adaptive bitrate:
+    //   sp_hls  → HLS streaming profile (generates .m3u8 with multiple qualities)
+    //   w_720   → max width cap
+    //   q_auto  → auto quality
+    //   f_auto  → auto format
+    const transforms = [`w_${maxWidth}`, "q_auto", "sp_hls", "f_auto"]
+    const transformStr = transforms.join(",")
+
+    return baseUrl + transformStr + "/" + cleanPath
+  } catch (error) {
+    console.error('Failed to generate HLS URL:', error)
+    return videoUrl
+  }
+}
+
+/**
+ * Get a safe video URL that won't break if transformations fail.
+ * Returns the original URL if optimization fails.
+ *
+ * For HLS delivery, use getHlsVideoUrl() instead.
+ * This function returns a fallback MP4 URL.
  */
 export function getSafeVideoUrl(videoUrl: string): string {
   try {
@@ -135,11 +249,10 @@ export function getSafeVideoUrl(videoUrl: string): string {
         const afterUpload = url.slice(insertAt)
         
         // Strip ANY existing transform segment (contains a comma) before the public ID
-        // This handles URLs that already have stale/invalid transforms baked in
         const segments = afterUpload.split('/')
         let publicIdStart = 0
         if (segments[0] && segments[0].includes(',')) {
-          publicIdStart = segments[0].length + 1 // skip the transform segment + the slash
+          publicIdStart = segments[0].length + 1
         }
         
         const baseUrl = url.slice(0, insertAt)
@@ -162,6 +275,11 @@ export function getSafeVideoUrl(videoUrl: string): string {
   }
 }
 
+/**
+ * Upload a file directly to Cloudinary from the client.
+ * Used for images (small files). Videos are routed through the server
+ * API route for FFmpeg conversion + upload.
+ */
 export async function uploadToCloudinary(file: File): Promise<string> {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
   const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
@@ -172,24 +290,22 @@ export async function uploadToCloudinary(file: File): Promise<string> {
 
   const isVideo = file.type.startsWith("video/")
 
-  // Convert video to MP4 format if it's a video file
-  let fileToUpload = file
+  // Route video uploads through the server API route which handles
+  // FFmpeg conversion + Cloudinary upload in one request.
+  // This avoids downloading ~30MB of FFmpeg WASM to the browser
+  // and keeps video processing off the main thread.
   if (isVideo) {
-    console.log('Converting video to MP4 format...')
-    const { convertToMp4 } = await import('./video-utils')
-    fileToUpload = await convertToMp4(file)
-    console.log('Video converted successfully:', fileToUpload.type, fileToUpload.name)
+    return uploadVideoViaServer(file)
   }
 
+  // Images upload directly to Cloudinary (small files, no conversion needed)
   const formData = new FormData()
-  formData.append('file', fileToUpload)
+  formData.append('file', file)
   formData.append('upload_preset', uploadPreset)
   formData.append('folder', 'ammie-store/products')
 
-  // Videos use a different Cloudinary upload endpoint
-  const resourceType = isVideo ? "video" : "image"
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
     {
       method: 'POST',
       body: formData,
@@ -198,19 +314,60 @@ export async function uploadToCloudinary(file: File): Promise<string> {
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.error?.message || `Failed to upload ${resourceType}`)
+    throw new Error(error.error?.message || 'Failed to upload image')
   }
 
   const data = await response.json()
-  
-  if (isVideo) {
-    // For videos, apply bandwidth-saving transforms directly on upload
-    // and return the optimized URL. We still store the base URL so future
-    // transforms can be applied dynamically.
-    return transformImageUrl(data.secure_url)
-  }
-  
   return transformImageUrl(data.secure_url)
+}
+
+/**
+ * Upload a video file via the server API route.
+ * The server handles:
+ *   1. Authentication check (admin only)
+ *   2. Server-side FFmpeg conversion (no browser WASM)
+ *   3. Cloudinary upload
+ *   4. Bandwidth-saving transforms
+ *
+ * Returns the optimized Cloudinary URL.
+ */
+async function uploadVideoViaServer(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch('/api/upload/video', {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let errorMessage = 'Video upload failed'
+    try {
+      const error = await response.json()
+      errorMessage = error.error || errorMessage
+    } catch {
+      // Use default error message
+    }
+    throw new Error(errorMessage)
+  }
+
+  const data = await response.json()
+  return data.url
+}
+
+/**
+ * Upload a file via the server API route (handles both images and videos).
+ * Useful when you want server-side processing for both types.
+ * Falls back to client-side upload for images.
+ */
+export async function uploadViaServer(file: File): Promise<string> {
+  // Only route videos through the server (FFmpeg conversion needed)
+  if (file.type.startsWith("video/")) {
+    return uploadVideoViaServer(file)
+  }
+
+  // Images go through client-side upload (faster, no server processing needed)
+  return uploadToCloudinary(file)
 }
 
 /**

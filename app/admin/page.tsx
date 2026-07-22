@@ -180,6 +180,9 @@ export default function AdminPage() {
 
         if (error) throw error
         toast.success(`Product "${form.name}" updated successfully!`)
+
+        // Trigger ISR revalidation so the product page refreshes instantly
+        revalidateProductPage(editingId)
       } else {
         // Add new product
         const { error } = await client
@@ -257,6 +260,25 @@ export default function AdminPage() {
     const client = createClientBrowser()
     await client.auth.signOut()
     window.location.href = "/admin/login"
+  }
+
+  /**
+   * Trigger on-demand ISR revalidation for a product page.
+   * After updating a product (e.g. uploading a new video), this ensures
+   * the statically-generated product page is refreshed immediately
+   * without requiring a full rebuild.
+   */
+  const revalidateProductPage = async (productId: string) => {
+    try {
+      await fetch('/api/revalidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: `/product/${productId}` }),
+      })
+    } catch (error) {
+      console.error('Revalidation request failed:', error)
+      // Non-critical — the page will still revalidate on its 60s ISR interval
+    }
   }
 
   const handleDeleteConfirm = async () => {

@@ -6,6 +6,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Increase body size limit for video uploads to the API route
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "120mb",
+    },
+  },
 }
 
 export default nextConfig
