@@ -50,7 +50,7 @@ export function ReviewsSection() {
   }
 
   return (
-    <section ref={sectionRef} className="py-12 md:py-16 bg-background overflow-hidden">
+    <section id="reviews" ref={sectionRef} className="py-12 md:py-16 bg-background overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         {/* Header */}
         <div ref={headerRef} className="text-center mb-8 md:mb-12 pb-8 md:pb-12 border-b border-border/30 rounded-b-3xl">

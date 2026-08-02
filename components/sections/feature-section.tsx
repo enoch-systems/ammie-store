@@ -92,7 +92,7 @@ export function FeatureSection() {
           {/* Content */}
           <div
             ref={headerRef}
-            className={`transition-all duration-700 ease-out text-center ${
+            className={`transition-all duration-700 ease-out text-center lg:text-left ${
               isVideoVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             }`}
             style={{ transitionDelay: '100ms' }}
@@ -103,7 +103,7 @@ export function FeatureSection() {
             <h2 className={`font-serif text-4xl leading-tight text-foreground mb-6 text-balance md:text-7xl ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.4s', animationFillMode: 'forwards' } : {}}>
               Hair that inspires.
             </h2>
-            <p className={`text-lg text-muted-foreground leading-relaxed mb-10 max-w-md ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.6s', animationFillMode: 'forwards' } : {}}>
+            <p className={`text-base sm:text-lg text-muted-foreground leading-relaxed mb-10 max-w-md mx-auto lg:mx-0 ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.6s', animationFillMode: 'forwards' } : {}}>
               We believe premium hair should feel natural, look flawless, and make you unstoppable.
               Every piece is crafted with the finest quality and care.
             </p>

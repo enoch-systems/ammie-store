@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ChevronDown, Loader2, Pencil, Plus, X } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, X } from "lucide-react"
+import { Country } from "country-state-city"
 import { toast } from "sonner"
 import { Header } from "@/components/layout/header"
 import { ReviewCard } from "@/components/sections/review-card"
@@ -19,10 +20,15 @@ export default function AdminReviewsPage() {
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewEditingId, setReviewEditingId] = useState<string | null>(null)
   const [reviewPreviewMedia, setReviewPreviewMedia] = useState<Review["media"]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [countrySearch, setCountrySearch] = useState("")
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false)
+  const reviewsPerPage = 12
   const MAX_REVIEW_IMAGES = 4
   const [reviewForm, setReviewForm] = useState({
     customerName: "",
-    location: "",
+    country: "",
+    city: "",
     rating: "5",
     comment: "",
     productName: "",
@@ -31,6 +37,23 @@ export default function AdminReviewsPage() {
     likes: 0,
     date: new Date().toISOString().split("T")[0],
   })
+
+  const allCountries = useMemo(() =>
+    Country.getAllCountries().sort((a, b) => a.name.localeCompare(b.name)),
+    []
+  )
+
+  const filteredCountries = useMemo(() => {
+    const search = countrySearch.trim().toLowerCase()
+
+    if (!search) {
+      return allCountries
+    }
+
+    return allCountries.filter((country) =>
+      country.name.toLowerCase().includes(search) || country.isoCode.toLowerCase().includes(search)
+    )
+  }, [allCountries, countrySearch])
 
   useEffect(() => {
     setMounted(true)
@@ -78,7 +101,8 @@ export default function AdminReviewsPage() {
   const resetReviewForm = () => {
     setReviewForm({
       customerName: "",
-      location: "",
+      country: "",
+      city: "",
       rating: "5",
       comment: "",
       productName: "",
@@ -87,6 +111,8 @@ export default function AdminReviewsPage() {
       likes: 0,
       date: new Date().toISOString().split("T")[0],
     })
+    setCountrySearch("")
+    setShowCountryDropdown(false)
     setReviewEditingId(null)
     setReviewPreviewMedia([])
     setShowReviewModal(false)
@@ -98,9 +124,12 @@ export default function AdminReviewsPage() {
   }
 
   const editReview = (review: Review) => {
+    const [city, country] = review.location.split(",").map((value) => value.trim())
+
     setReviewForm({
       customerName: review.customerName,
-      location: review.location,
+      country: country || "",
+      city: city || review.location,
       rating: String(review.rating),
       comment: review.comment,
       productName: review.productName,
@@ -109,6 +138,7 @@ export default function AdminReviewsPage() {
       likes: review.likes,
       date: review.date,
     })
+    setCountrySearch(country || "")
     setReviewEditingId(review.id)
     setReviewPreviewMedia(review.media)
     setShowReviewModal(true)
@@ -116,6 +146,16 @@ export default function AdminReviewsPage() {
 
   const handleReviewFieldChange = (field: string, value: string) => {
     setReviewForm((prev) => ({ ...prev, [field]: value }))
+
+    if (field === "country") {
+      setCountrySearch(value)
+    }
+  }
+
+  const selectCountry = (countryName: string) => {
+    setReviewForm((prev) => ({ ...prev, country: countryName }))
+    setCountrySearch(countryName)
+    setShowCountryDropdown(false)
   }
 
   const handleRemoveReviewMedia = (index: number) => {
@@ -132,11 +172,13 @@ export default function AdminReviewsPage() {
       return
     }
 
+    const location = [reviewForm.city.trim(), reviewForm.country.trim()].filter(Boolean).join(", ") || "Unknown location"
+
     const cleanReview: Review = {
       id: reviewEditingId || String(Date.now()),
       customerName: reviewForm.customerName.trim() || "Unnamed Customer",
       customerAvatar: reviewForm.customerAvatar || "/placeholder-user.jpg",
-      location: reviewForm.location.trim() || "Unknown location",
+      location,
       rating: Number(reviewForm.rating) || 5,
       comment: reviewForm.comment.trim() || "No comment provided",
       productName: reviewForm.productName.trim() || "Unknown product",
@@ -157,6 +199,45 @@ export default function AdminReviewsPage() {
 
     toast.success(reviewEditingId ? "Review updated successfully" : "Review added successfully")
     resetReviewForm()
+  }
+
+  const totalPages = Math.ceil(reviewList.length / reviewsPerPage)
+  const startIndex = (currentPage - 1) * reviewsPerPage
+  const endIndex = startIndex + reviewsPerPage
+  const currentReviews = reviewList.slice(startIndex, endIndex)
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1)
+    }
+  }
+
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1)
+    }
+  }
+
+  const getPageNumbers = () => {
+    const pages: number[] = []
+
+    let startPage = Math.max(1, currentPage - 1)
+    let endPage = Math.min(totalPages, startPage + 2)
+
+    if (endPage - startPage < 2) {
+      startPage = Math.max(1, endPage - 2)
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i)
+    }
+
+    return pages
   }
 
   const handleLogout = async () => {
@@ -219,27 +300,27 @@ export default function AdminReviewsPage() {
                     <p className="text-xs text-muted-foreground mt-1">Add between 1 and {MAX_REVIEW_IMAGES} images for this review</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="grid grid-cols-4 gap-2 sm:gap-3 mb-5 mx-auto max-w-[320px] sm:max-w-none">
                     {Array.from({ length: MAX_REVIEW_IMAGES }).map((_, index) => {
                       const media = reviewPreviewMedia[index]
 
                       return (
-                        <div key={`slot-${index}`} className="relative aspect-square rounded-xl overflow-hidden border border-border/50 bg-background">
+                        <div key={`slot-${index}`} className="relative aspect-square rounded-lg sm:rounded-xl overflow-hidden border border-border/50 bg-background">
                           {media ? (
                             <>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveReviewMedia(index)}
-                                className="absolute top-2 right-2 z-10 rounded-full bg-background/90 p-1 text-foreground shadow-sm"
+                                className="absolute top-1.5 right-1.5 z-10 rounded-full bg-background/90 p-1 text-foreground shadow-sm"
                                 aria-label={`Remove media ${index + 1}`}
                               >
-                                <X className="w-3.5 h-3.5" />
+                                <X className="w-3 h-3" />
                               </button>
                               <img src={media.url} alt={`Review media ${index + 1}`} className="w-full h-full object-cover" />
                             </>
                           ) : (
                             <div className="flex h-full items-center justify-center text-muted-foreground">
-                              <Plus className="w-8 h-8" />
+                              <Plus className="w-5 h-5 sm:w-8 sm:h-8" />
                             </div>
                           )}
                         </div>
@@ -274,11 +355,49 @@ export default function AdminReviewsPage() {
                     </label>
 
                     <label className="flex flex-col gap-2">
-                      <span className="text-sm font-medium text-foreground">Location</span>
+                      <span className="text-sm font-medium text-foreground">Country</span>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={countrySearch}
+                          onFocus={() => setShowCountryDropdown(true)}
+                          onChange={(e) => {
+                            handleReviewFieldChange("country", e.target.value)
+                            setShowCountryDropdown(true)
+                          }}
+                          placeholder="Search country"
+                          className="w-full rounded-xl border border-border bg-background pl-9 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+
+                      {showCountryDropdown && (
+                        <div className="max-h-52 overflow-y-auto rounded-xl border border-border bg-background shadow-sm">
+                          {filteredCountries.length === 0 ? (
+                            <p className="px-3 py-3 text-sm text-muted-foreground">No country found</p>
+                          ) : (
+                            filteredCountries.map((country) => (
+                              <button
+                                key={country.isoCode}
+                                type="button"
+                                onClick={() => selectCountry(country.name)}
+                                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted/50"
+                              >
+                                <span>{country.name}</span>
+                                <span className="text-xs text-muted-foreground">{country.isoCode}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </label>
+
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-foreground">City</span>
                       <input
                         type="text"
-                        value={reviewForm.location}
-                        onChange={(e) => handleReviewFieldChange("location", e.target.value)}
+                        value={reviewForm.city}
+                        onChange={(e) => handleReviewFieldChange("city", e.target.value)}
                         className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                       />
                     </label>
@@ -342,12 +461,12 @@ export default function AdminReviewsPage() {
           </Dialog>
 
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6">
-            {reviewList.map((review) => (
+            {currentReviews.map((review) => (
               <div key={review.id} className="relative transition-all duration-300">
                 <ReviewCard
                   review={review}
                   onViewMore={() => editReview(review)}
-                  actionLabel="Edit"
+                  actionLabel="Edit review"
                 />
 
                 <button
@@ -361,6 +480,50 @@ export default function AdminReviewsPage() {
               </div>
             ))}
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-12">
+              <button
+                onClick={handlePrevious}
+                disabled={currentPage === 1}
+                className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium transition-all duration-200 ${
+                  currentPage === 1
+                    ? "text-muted-foreground/20 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3">
+                {getPageNumbers().map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium transition-all duration-200 ${
+                      currentPage === page
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={handleNext}
+                disabled={currentPage === totalPages}
+                className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium transition-all duration-200 ${
+                  currentPage === totalPages
+                    ? "text-muted-foreground/20 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </main>

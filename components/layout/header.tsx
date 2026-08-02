@@ -65,6 +65,12 @@ export function Header({ variant = "default", onLogoutClick }: { variant?: "defa
                 Shop
               </Link>
               <Link
+                href="/#reviews"
+                className="text-sm tracking-wide text-foreground/70 hover:text-foreground boty-transition"
+              >
+                Reviews
+              </Link>
+              <Link
                 href="/faq"
                 className="text-sm tracking-wide text-foreground/70 hover:text-foreground boty-transition"
               >
@@ -146,6 +152,13 @@ export function Header({ variant = "default", onLogoutClick }: { variant?: "defa
               className="relative z-[60] text-sm tracking-wide text-foreground/70 hover:text-foreground boty-transition cursor-pointer"
             >
               Shop
+            </Link>
+            <Link
+              href="/#reviews"
+              onClick={() => setIsMenuOpen(false)}
+              className="relative z-[60] text-sm tracking-wide text-foreground/70 hover:text-foreground boty-transition cursor-pointer"
+            >
+              Reviews
             </Link>
             <Link
               href="/faq"
