@@ -27,6 +27,7 @@ export default function AdminReviewsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [countrySearch, setCountrySearch] = useState("")
   const [showCountryDropdown, setShowCountryDropdown] = useState(false)
+  const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [products, setProducts] = useState<{ id: string; name: string; images: string[] }[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -77,7 +78,9 @@ export default function AdminReviewsPage() {
   }, [supabase, toast])
 
   const allCountries = useMemo(() =>
-    Country.getAllCountries().sort((a, b) => a.name.localeCompare(b.name)),
+    Country.getAllCountries()
+      .filter((country) => country.name !== "United States Minor Outlying Islands")
+      .sort((a, b) => a.name.localeCompare(b.name)),
     []
   )
 
@@ -92,6 +95,18 @@ export default function AdminReviewsPage() {
       country.name.toLowerCase().includes(search) || country.isoCode.toLowerCase().includes(search)
     )
   }, [allCountries, countrySearch])
+
+  const filteredProducts = useMemo(() => {
+    const search = reviewForm.productName.trim().toLowerCase()
+
+    if (!search) {
+      return products.slice(0, 8)
+    }
+
+    return products.filter((product) =>
+      product.name.toLowerCase().includes(search)
+    ).slice(0, 8)
+  }, [products, reviewForm.productName])
 
   // Fetch reviews from API
   const fetchReviews = useCallback(async () => {
@@ -288,7 +303,18 @@ export default function AdminReviewsPage() {
         productName: selectedProduct.name,
         productImage: selectedProduct.images[0] || "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png"
       }))
+      setShowProductDropdown(false)
     }
+  }
+
+  const handleProductInputChange = (value: string) => {
+    setReviewForm(prev => ({
+      ...prev,
+      productName: value,
+      productId: "",
+      productImage: "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png",
+    }))
+    setShowProductDropdown(true)
   }
 
   const selectCountry = (countryName: string) => {
@@ -307,11 +333,16 @@ export default function AdminReviewsPage() {
 
     if (reviewPreviewMedia.length >= MAX_REVIEW_IMAGES) {
       toast.error(`Maximum ${MAX_REVIEW_IMAGES} images allowed`)
+      event.target.value = ''
       return
     }
 
     const remainingSlots = MAX_REVIEW_IMAGES - reviewPreviewMedia.length
     const filesToUpload = Array.from(files).slice(0, remainingSlots)
+
+    if (files.length > filesToUpload.length) {
+      toast.info(`Only the first ${filesToUpload.length} selected files were added. The review keeps up to ${MAX_REVIEW_IMAGES} images.`)
+    }
 
     setUploadingImage(true)
     try {
@@ -329,7 +360,6 @@ export default function AdminReviewsPage() {
       toast.error("Failed to upload images")
     } finally {
       setUploadingImage(false)
-      // Reset input
       event.target.value = ''
     }
   }
@@ -611,7 +641,7 @@ export default function AdminReviewsPage() {
                                 multiple
                                 onChange={handleImageUpload}
                                 className="hidden"
-                                disabled={uploadingImage}
+                                disabled={uploadingImage || reviewPreviewMedia.length >= MAX_REVIEW_IMAGES}
                               />
                               {uploadingImage ? (
                                 <Loader2 className="w-5 h-5 sm:w-8 sm:h-8 animate-spin" />
@@ -623,10 +653,25 @@ export default function AdminReviewsPage() {
                         </div>
                       )
                     })}
+
+                    {reviewPreviewMedia.length < MAX_REVIEW_IMAGES && (
+                      <label className="col-span-4 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/60 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground">
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          multiple
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                        {uploadingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        Add multiple
+                      </label>
+                    )}
                   </div>
 
                   <p className="text-[11px] text-muted-foreground">
-                    {reviewPreviewMedia.length}/{MAX_REVIEW_IMAGES} images selected
+                    {reviewPreviewMedia.length}/{MAX_REVIEW_IMAGES} images selected. Only the first {Math.min(MAX_REVIEW_IMAGES, reviewPreviewMedia.length)} marked files are kept.
                   </p>
                 </div>
 
@@ -647,6 +692,7 @@ export default function AdminReviewsPage() {
                         type="text"
                         value={reviewForm.customerName}
                         onChange={(e) => handleReviewFieldChange("customerName", e.target.value)}
+                        placeholder="Enter customer full name"
                         className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                       />
                     </label>
@@ -663,7 +709,7 @@ export default function AdminReviewsPage() {
                             handleReviewFieldChange("country", e.target.value)
                             setShowCountryDropdown(true)
                           }}
-                          placeholder="Search country"
+                          placeholder="e.g. United States"
                           className="w-full rounded-xl border border-border bg-background pl-9 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
@@ -695,25 +741,39 @@ export default function AdminReviewsPage() {
                         type="text"
                         value={reviewForm.city}
                         onChange={(e) => handleReviewFieldChange("city", e.target.value)}
+                        placeholder="e.g. California"
                         className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                       />
                     </label>
 
                     <label className="flex flex-col gap-2">
                       <span className="text-sm font-medium text-foreground">Product</span>
-                      <select
-                        value={reviewForm.productId}
-                        onChange={(e) => handleProductSelect(e.target.value)}
-                        className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                      >
-                        <option value="">Select a product</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                          </option>
-                        ))}
-                      </select>
-                      {reviewForm.productName && (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={reviewForm.productName}
+                          onFocus={() => setShowProductDropdown(true)}
+                          onChange={(e) => handleProductInputChange(e.target.value)}
+                          placeholder="Enter product name"
+                          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                        />
+
+                        {showProductDropdown && reviewForm.productName && filteredProducts.length > 0 && (
+                          <div className="absolute z-20 mt-2 max-h-52 w-full overflow-y-auto rounded-xl border border-border bg-background shadow-lg">
+                            {filteredProducts.map((product) => (
+                              <button
+                                key={product.id}
+                                type="button"
+                                onClick={() => handleProductSelect(product.id)}
+                                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted/50"
+                              >
+                                <span>{product.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {reviewForm.productId && (
                         <p className="text-xs text-muted-foreground mt-1">
                           Selected: {reviewForm.productName}
                         </p>
@@ -742,6 +802,7 @@ export default function AdminReviewsPage() {
                         rows={4}
                         value={reviewForm.comment}
                         onChange={(e) => handleReviewFieldChange("comment", e.target.value)}
+                        placeholder="Enter customer review comment"
                         className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                       />
                     </label>
