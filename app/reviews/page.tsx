@@ -7,15 +7,38 @@ import { Star, ChevronLeft, ChevronRight } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { ReviewCard } from "@/components/sections/review-card"
-import { reviews } from "@/components/sections/reviews-data"
+import { normalizeReview, type Review } from "@/components/sections/reviews-data"
 
 export default function ReviewsPage() {
   const [headerVisible, setHeaderVisible] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
   const headerRef = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLDivElement>(null)
   const reviewsPerPage = 12
+
+  // Fetch reviews from API
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const response = await fetch(`/api/reviews?page=${currentPage}&limit=${reviewsPerPage}`)
+        if (response.ok) {
+          const data = await response.json()
+          setReviews((data.reviews || []).map((review: Review) => normalizeReview(review)))
+          setTotalPages(data.totalPages || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching reviews:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReviews()
+  }, [currentPage, reviewsPerPage])
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -49,10 +72,7 @@ export default function ReviewsPage() {
     window.location.href = `/reviews/${reviewId}`
   }
 
-  const totalPages = Math.ceil(reviews.length / reviewsPerPage)
-  const startIndex = (currentPage - 1) * reviewsPerPage
-  const endIndex = startIndex + reviewsPerPage
-  const currentReviews = reviews.slice(startIndex, endIndex)
+  const currentReviews = reviews
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -111,20 +131,30 @@ export default function ReviewsPage() {
           </div>
 
           {/* Reviews Grid */}
-          <div ref={sectionRef} className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6 ${isVisible ? 'animate-fade-in' : 'opacity-0'}`} style={isVisible ? { animationDelay: '0.8s', animationFillMode: 'forwards' } : {}}>
-            {currentReviews.map((review, index) => (
-              <div
-                key={review.id}
-                className="transition-all duration-700 ease-out"
-                style={{ 
-                  animationDelay: `${index * 50}ms`,
-                  animationFillMode: 'forwards'
-                }}
-              >
-                <ReviewCard review={review} onViewMore={handleViewMore} />
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading reviews...</p>
+            </div>
+          ) : currentReviews.length > 0 ? (
+            <div ref={sectionRef} className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6 ${isVisible ? 'animate-fade-in' : 'opacity-0'}`} style={isVisible ? { animationDelay: '0.8s', animationFillMode: 'forwards' } : {}}>
+              {currentReviews.map((review, index) => (
+                <div
+                  key={review.id}
+                  className="transition-all duration-700 ease-out"
+                  style={{ 
+                    animationDelay: `${index * 50}ms`,
+                    animationFillMode: 'forwards'
+                  }}
+                >
+                  <ReviewCard review={review} onViewMore={handleViewMore} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No reviews yet. Be the first to review!</p>
+            </div>
+          )}
 
           {/* Pagination */}
           {totalPages > 1 && (

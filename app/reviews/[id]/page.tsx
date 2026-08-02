@@ -3,19 +3,20 @@
 import { useState, useEffect, use, useRef, type FormEvent } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, Heart, MessageCircle, ChevronLeft, ChevronRight, Play, Send, ArrowLeft, X } from "lucide-react"
+import { Star, Heart, MessageCircle, ChevronLeft, ChevronRight, Play, Send, ArrowLeft, X, Banknote } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
-import { reviews } from "@/components/sections/reviews-data"
-import type { ReviewComment } from "@/components/sections/reviews-data"
+import { normalizeReview, normalizeReviewComment, type Review, type ReviewComment } from "@/components/sections/reviews-data"
+import { supabase } from "@/lib/supabase"
 
 export default function ReviewDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
-  const review = reviews.find(r => r.id === resolvedParams.id)
+  const [review, setReview] = useState<Review | null>(null)
+  const [loading, setLoading] = useState(true)
   
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const [commentText, setCommentText] = useState("")
-  const [comments, setComments] = useState<ReviewComment[]>(review?.comments || [])
+  const [comments, setComments] = useState<ReviewComment[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalImageIndex, setModalImageIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
@@ -23,7 +24,51 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [userName, setUserName] = useState("")
   const [pendingComment, setPendingComment] = useState("")
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const mediaRef = useRef<HTMLDivElement>(null)
+
+  const upsertComment = (comment: ReviewComment) => {
+    setComments((current) => {
+      const existing = current.find((item) => item.id === comment.id)
+      if (existing) {
+        return current.map((item) => (item.id === comment.id ? comment : item))
+      }
+      return [comment, ...current]
+    })
+  }
+
+  const removeComment = (commentId: string) => {
+    setComments((current) => current.filter((comment) => comment.id !== commentId))
+  }
+
+  // Fetch review from API
+  useEffect(() => {
+    const fetchReview = async () => {
+      try {
+        console.log('Fetching review with ID:', resolvedParams.id)
+        const response = await fetch(`/api/reviews/${resolvedParams.id}`)
+        
+        console.log('API response status:', response.status, response.statusText)
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('API response data:', data)
+          const normalizedReview = normalizeReview(data)
+          setReview(normalizedReview)
+          setComments((data.comments || []).map((comment: ReviewComment) => normalizeReviewComment(comment)))
+        } else {
+          const errorData = await response.json()
+          console.error('API error response:', errorData)
+        }
+      } catch (error) {
+        console.error('Error fetching review:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReview()
+  }, [resolvedParams.id])
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -41,6 +86,46 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isModalOpen])
+
+  useEffect(() => {
+    if (!resolvedParams.id) return
+
+    const channel = supabase
+      .channel(`review-comments-${resolvedParams.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'review_comments', filter: `review_id=eq.${resolvedParams.id}` },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
+            upsertComment(normalizeReviewComment(payload.new))
+          }
+
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            upsertComment(normalizeReviewComment(payload.new))
+          }
+
+          if (payload.eventType === 'DELETE' && payload.old) {
+            removeComment(payload.old.id)
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [resolvedParams.id])
+
+  if (loading) {
+    return (
+      <main className="min-h-screen">
+        <Header />
+        <div className="pt-32 pb-20 text-center">
+          <p className="text-muted-foreground">Loading review...</p>
+        </div>
+      </main>
+    )
+  }
 
   if (!review) {
     return (
@@ -74,32 +159,47 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!commentText.trim()) return
+    if (!commentText.trim() || isSubmittingComment) return
 
-    // Store the comment text and open name modal
     setPendingComment(commentText)
     setIsNameModalOpen(true)
   }
 
-  const submitCommentWithName = () => {
-    if (!pendingComment.trim()) return
+  const submitCommentWithName = async () => {
+    if (!pendingComment.trim() || isSubmittingComment) return
 
-    const newComment: ReviewComment = {
-      id: `c${Date.now()}`,
-      authorName: userName.trim() || "You",
-      authorAvatar: "/placeholder-user.jpg",
-      text: pendingComment,
-      date: new Date().toISOString().split('T')[0]
+    setIsSubmittingComment(true)
+
+    try {
+      const response = await fetch(`/api/reviews/${resolvedParams.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          author_name: userName.trim() || "You",
+          author_avatar: "/placeholder-user.jpg",
+          text: pendingComment,
+        }),
+      })
+
+      if (response.ok) {
+        setCommentText("")
+        setPendingComment("")
+        setUserName("")
+        setIsNameModalOpen(false)
+      } else {
+        console.error('Failed to save comment')
+      }
+    } catch (error) {
+      console.error('Error saving comment:', error)
+    } finally {
+      setIsSubmittingComment(false)
     }
-
-    setComments((current) => [newComment, ...current])
-    setCommentText("")
-    setPendingComment("")
-    setUserName("")
-    setIsNameModalOpen(false)
   }
 
   const closeNameModal = () => {
+    if (isSubmittingComment) return
     setIsNameModalOpen(false)
     setPendingComment("")
     setUserName("")
@@ -159,10 +259,6 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
 
     closeModal()
   }
-
-  const purchasedImage = review.productImage && review.productImage !== "/placeholder.jpg"
-    ? review.productImage
-    : "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png"
 
   return (
     <main className="min-h-screen">
@@ -295,14 +391,8 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                 href={`/product/${review.id}`}
                 className="mb-6 flex items-center gap-3 rounded-2xl bg-muted/50 p-4 transition-colors hover:bg-muted/80"
               >
-                <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-muted">
-                  <Image
-                    src={purchasedImage}
-                    alt={review.productName}
-                    fill
-                    className="object-cover"
-                    sizes="64px"
-                  />
+                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-muted text-primary">
+                  <Banknote className="h-7 w-7" />
                 </div>
                 <div>
                   <p className="mb-1 text-xs text-muted-foreground">Purchased Product</p>
@@ -345,11 +435,11 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                       <div className="mt-2 flex justify-end">
                         <button
                           type="submit"
-                          disabled={!commentText.trim()}
+                          disabled={!commentText.trim() || isSubmittingComment}
                           className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-all duration-300 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Send className="h-4 w-4" />
-                          Post Comment
+                          {isSubmittingComment ? "Posting..." : "Post Comment"}
                         </button>
                       </div>
                     </div>
@@ -429,10 +519,11 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
               <button
                 type="button"
                 onClick={submitCommentWithName}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-all duration-300 hover:bg-primary/90"
+                disabled={isSubmittingComment}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-all duration-300 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
-                Post Comment
+                {isSubmittingComment ? "Posting..." : "Post Comment"}
               </button>
             </div>
           </div>

@@ -2,10 +2,9 @@
 
 import { useState, useRef } from "react"
 import Image from "next/image"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Star, Play } from "lucide-react"
-import { Review } from "./reviews-data"
+import { Star, Play, Banknote, MessageCircle } from "lucide-react"
+import { normalizeReview, type Review } from "./reviews-data"
 
 interface ReviewCardProps {
   review: Review
@@ -17,10 +16,9 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const mediaRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
-
-  const purchasedImage = review.productImage && review.productImage !== "/placeholder.jpg"
-    ? review.productImage
-    : "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png"
+  const normalizedReview = normalizeReview(review)
+  const commentCount = normalizedReview.comments?.length ?? 0
+  const firstComment = normalizedReview.comments?.[0]
 
   const handleScroll = () => {
     if (mediaRef.current) {
@@ -54,14 +52,14 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
       tabIndex={0}
     >
       {/* Media Carousel */}
-      {review.media.length > 0 && (
+      {normalizedReview.media.length > 0 && (
         <div className="relative bg-muted/30 rounded-t-2xl">
           <div
             ref={mediaRef}
             onScroll={handleScroll}
             className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory hide-scrollbar"
           >
-            {review.media.map((media, index) => (
+            {normalizedReview.media.map((media, index) => (
               <div
                 key={index}
                 className="relative flex-shrink-0 w-full snap-center"
@@ -96,9 +94,9 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
           </div>
 
           {/* Dots Indicator */}
-          {review.media.length > 1 && (
+          {normalizedReview.media.length > 1 && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {review.media.map((_, index) => (
+              {normalizedReview.media.map((_, index) => (
                 <button
                   key={index}
                   onClick={(e) => { 
@@ -125,17 +123,17 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
         {/* Customer Info */}
         <div className="flex items-center gap-1.5 mb-1">
           <Image
-            src={review.customerAvatar}
-            alt={review.customerName}
+            src={normalizedReview.customerAvatar}
+            alt={normalizedReview.customerName}
             width={20}
             height={20}
             className="w-5 h-5 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0"
           />
           <div className="flex-grow min-w-0">
-            <h3 className="font-semibold text-foreground text-[11px] md:text-sm truncate mb-0.5">{review.customerName}</h3>
-            <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{review.location}</p>
+            <h3 className="font-semibold text-foreground text-[11px] md:text-sm truncate mb-0.5">{normalizedReview.customerName}</h3>
+            <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{normalizedReview.location}</p>
             <div className="flex items-center gap-0.5">
-              {[...Array(review.rating)].map((_, i) => (
+              {[...Array(normalizedReview.rating)].map((_, i) => (
                 <Star key={i} className="w-1.5 h-1.5 md:w-3 md:h-3 fill-yellow-400 text-yellow-400" />
               ))}
             </div>
@@ -144,8 +142,20 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
 
         {/* Comment */}
         <p className="text-[9px] md:text-xs text-foreground/80 leading-relaxed mb-1.5 line-clamp-3 flex-grow">
-          {review.comment}
+          {normalizedReview.comment}
         </p>
+
+        <div className="mb-1.5 rounded-xl bg-muted/40 px-2 py-1.5">
+          <div className="mb-1 flex items-center gap-1 text-[8px] md:text-[10px] text-muted-foreground">
+            <MessageCircle className="h-3 w-3" />
+            <span>{commentCount} comment{commentCount === 1 ? "" : "s"}</span>
+          </div>
+          {firstComment && (
+            <p className="text-[9px] md:text-xs text-foreground/80 line-clamp-2">
+              {firstComment.text}
+            </p>
+          )}
+        </div>
 
         {/* Product Tag */}
         <button
@@ -156,18 +166,12 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
           }}
           className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-border/50 w-full text-left cursor-pointer"
         >
-          <div className="relative w-6 h-6 md:w-10 md:h-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
-            <Image
-              src={purchasedImage}
-              alt={review.productName}
-              fill
-              className="object-cover"
-              sizes="28px"
-            />
+          <div className="flex h-6 w-6 md:h-10 md:w-10 items-center justify-center rounded-md bg-muted text-primary flex-shrink-0">
+            <Banknote className="h-3.5 w-3.5 md:h-5 md:w-5" />
           </div>
           <div className="min-w-0">
             <p className="text-[8px] md:text-xs text-muted-foreground">Purchased</p>
-            <p className="text-[9px] md:text-sm font-medium text-foreground truncate">{review.productName}</p>
+            <p className="text-[9px] md:text-sm font-medium text-foreground truncate">{normalizedReview.productName}</p>
           </div>
         </button>
 
@@ -177,7 +181,7 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                onViewMore(review.id)
+                onViewMore(normalizedReview.id)
               }}
               className="inline-flex items-center px-3 py-1.5 text-[10px] md:text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-full transition-all duration-200"
             >

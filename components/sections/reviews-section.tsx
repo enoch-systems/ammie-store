@@ -5,13 +5,34 @@ import Image from "next/image"
 import Link from "next/link"
 import { Star, ChevronRight } from "lucide-react"
 import { ReviewCard } from "./review-card"
-import { reviews } from "./reviews-data"
+import { normalizeReview, type Review } from "./reviews-data"
 
 export function ReviewsSection() {
   const [headerVisible, setHeaderVisible] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
   const headerRef = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLDivElement>(null)
+
+  // Fetch reviews from API
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const response = await fetch('/api/reviews?limit=6')
+        if (response.ok) {
+          const data = await response.json()
+          setReviews((data.reviews || []).map((review: Review) => normalizeReview(review)))
+        }
+      } catch (error) {
+        console.error('Error fetching reviews:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReviews()
+  }, [])
 
   // Display first 6 reviews on homepage
   const displayedReviews = reviews.slice(0, 6)
@@ -66,20 +87,30 @@ export function ReviewsSection() {
         </div>
 
         {/* Reviews Grid */}
-        <div className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6 mb-10 md:mb-12 ${isVisible ? 'animate-fade-in' : 'opacity-0'}`} style={isVisible ? { animationDelay: '0.8s', animationFillMode: 'forwards' } : {}}>
-          {displayedReviews.map((review, index) => (
-            <div
-              key={review.id}
-              className="transition-all duration-700 ease-out"
-              style={{ 
-                animationDelay: `${index * 100}ms`,
-                animationFillMode: 'forwards'
-              }}
-            >
-              <ReviewCard review={review} onViewMore={handleViewMore} />
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading reviews...</p>
+          </div>
+        ) : displayedReviews.length > 0 ? (
+          <div className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6 mb-10 md:mb-12 ${isVisible ? 'animate-fade-in' : 'opacity-0'}`} style={isVisible ? { animationDelay: '0.8s', animationFillMode: 'forwards' } : {}}>
+            {displayedReviews.map((review, index) => (
+              <div
+                key={review.id}
+                className="transition-all duration-700 ease-out"
+                style={{ 
+                  animationDelay: `${index * 100}ms`,
+                  animationFillMode: 'forwards'
+                }}
+              >
+                <ReviewCard review={review} onViewMore={handleViewMore} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No reviews yet. Be the first to review!</p>
+          </div>
+        )}
 
         {/* View More Button */}
         <div className="text-center mt-8 md:mt-10">

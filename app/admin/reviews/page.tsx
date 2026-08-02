@@ -1,28 +1,42 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, X } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, X, Upload, Trash2, MessageCircle, User } from "lucide-react"
 import { Country } from "country-state-city"
 import { toast } from "sonner"
 import { Header } from "@/components/layout/header"
 import { ReviewCard } from "@/components/sections/review-card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { supabase } from "@/lib/supabase"
-import { reviews as initialReviews, type Review } from "@/components/sections/reviews-data"
+import { reviews as initialReviews, type Review, type ReviewComment } from "@/components/sections/reviews-data"
+import { uploadToCloudinary, isVideoUrl } from "@/lib/cloudinary"
+import { ConfirmationModal } from "@/components/shared/confirmation-modal"
 
 export default function AdminReviewsPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
-  const [reviewList, setReviewList] = useState<Review[]>(() => initialReviews)
+  const [reviewList, setReviewList] = useState<Review[]>([])
+  const [loadingReviews, setLoadingReviews] = useState(true)
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewEditingId, setReviewEditingId] = useState<string | null>(null)
   const [reviewPreviewMedia, setReviewPreviewMedia] = useState<Review["media"]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [countrySearch, setCountrySearch] = useState("")
   const [showCountryDropdown, setShowCountryDropdown] = useState(false)
+  const [products, setProducts] = useState<{ id: string; name: string; images: string[] }[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [reviewToDelete, setReviewToDelete] = useState<{ id: string; customerName: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [showCommentsModal, setShowCommentsModal] = useState(false)
+  const [selectedReviewComments, setSelectedReviewComments] = useState<ReviewComment[]>([])
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null)
+  const [deletingComment, setDeletingComment] = useState(false)
   const reviewsPerPage = 12
   const MAX_REVIEW_IMAGES = 4
   const [reviewForm, setReviewForm] = useState({
@@ -32,11 +46,35 @@ export default function AdminReviewsPage() {
     rating: "5",
     comment: "",
     productName: "",
-    productImage: "/placeholder.jpg",
+    productId: "",
+    productImage: "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png",
     customerAvatar: "/placeholder-user.jpg",
     likes: 0,
     date: new Date().toISOString().split("T")[0],
   })
+
+  // Fetch products for selector
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoadingProducts(true)
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, images")
+          .order("name")
+
+        if (error) throw error
+        if (data) setProducts(data)
+      } catch (error) {
+        console.error("Error fetching products:", error)
+        toast.error("Failed to load products")
+      } finally {
+        setLoadingProducts(false)
+      }
+    }
+
+    fetchProducts()
+  }, [supabase, toast])
 
   const allCountries = useMemo(() =>
     Country.getAllCountries().sort((a, b) => a.name.localeCompare(b.name)),
@@ -54,6 +92,24 @@ export default function AdminReviewsPage() {
       country.name.toLowerCase().includes(search) || country.isoCode.toLowerCase().includes(search)
     )
   }, [allCountries, countrySearch])
+
+  // Fetch reviews from API
+  const fetchReviews = useCallback(async () => {
+    try {
+      setLoadingReviews(true)
+      const response = await fetch('/api/reviews?all=true&limit=100')
+
+      if (response.ok) {
+        const data = await response.json()
+        setReviewList(data.reviews || [])
+      }
+    } catch (error) {
+      console.error("Error fetching reviews:", error)
+      toast.error("Failed to load reviews")
+    } finally {
+      setLoadingReviews(false)
+    }
+  }, [toast])
 
   useEffect(() => {
     setMounted(true)
@@ -98,6 +154,75 @@ export default function AdminReviewsPage() {
     }
   }, [router])
 
+  // Fetch reviews after auth check
+  useEffect(() => {
+    if (!authChecking && mounted) {
+      fetchReviews()
+    }
+  }, [authChecking, mounted, fetchReviews])
+
+  // Real-time subscription for reviews
+  useEffect(() => {
+    if (!mounted || authChecking) return
+
+    const channel = supabase
+      .channel("admin-reviews-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reviews" },
+        () => {
+          fetchReviews()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [mounted, authChecking, supabase, fetchReviews])
+
+  // Real-time subscription for comments
+  useEffect(() => {
+    if (!mounted || authChecking || !showCommentsModal || !selectedReviewId) return
+
+    const upsertSelectedComment = (comment: ReviewComment) => {
+      setSelectedReviewComments((prev) => {
+        const existing = prev.find((item) => item.id === comment.id)
+        if (existing) {
+          return prev.map((item) => (item.id === comment.id ? comment : item))
+        }
+        return [comment, ...prev]
+      })
+    }
+
+    const channel = supabase
+      .channel(`admin-comments-changes-${selectedReviewId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "review_comments",
+          filter: `review_id=eq.${selectedReviewId}`
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            setSelectedReviewComments((prev) => prev.filter((c) => c.id !== payload.old.id))
+          } else if (payload.eventType === "INSERT") {
+            upsertSelectedComment(normalizeReviewComment(payload.new))
+          } else if (payload.eventType === "UPDATE") {
+            const updatedComment = normalizeReviewComment(payload.new)
+            upsertSelectedComment(updatedComment)
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [mounted, authChecking, showCommentsModal, selectedReviewId, supabase])
+
   const resetReviewForm = () => {
     setReviewForm({
       customerName: "",
@@ -106,7 +231,8 @@ export default function AdminReviewsPage() {
       rating: "5",
       comment: "",
       productName: "",
-      productImage: "/placeholder.jpg",
+      productId: "",
+      productImage: "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png",
       customerAvatar: "/placeholder-user.jpg",
       likes: 0,
       date: new Date().toISOString().split("T")[0],
@@ -133,6 +259,7 @@ export default function AdminReviewsPage() {
       rating: String(review.rating),
       comment: review.comment,
       productName: review.productName,
+      productId: (review as any).product_id || "",
       productImage: review.productImage,
       customerAvatar: review.customerAvatar,
       likes: review.likes,
@@ -152,6 +279,18 @@ export default function AdminReviewsPage() {
     }
   }
 
+  const handleProductSelect = (productId: string) => {
+    const selectedProduct = products.find(p => p.id === productId)
+    if (selectedProduct) {
+      setReviewForm(prev => ({
+        ...prev,
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        productImage: selectedProduct.images[0] || "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png"
+      }))
+    }
+  }
+
   const selectCountry = (countryName: string) => {
     setReviewForm((prev) => ({ ...prev, country: countryName }))
     setCountrySearch(countryName)
@@ -162,9 +301,42 @@ export default function AdminReviewsPage() {
     setReviewPreviewMedia((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
   }
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    if (reviewPreviewMedia.length >= MAX_REVIEW_IMAGES) {
+      toast.error(`Maximum ${MAX_REVIEW_IMAGES} images allowed`)
+      return
+    }
+
+    const remainingSlots = MAX_REVIEW_IMAGES - reviewPreviewMedia.length
+    const filesToUpload = Array.from(files).slice(0, remainingSlots)
+
+    setUploadingImage(true)
+    try {
+      const uploadPromises = filesToUpload.map(async (file) => {
+        const url = await uploadToCloudinary(file)
+        const type = isVideoUrl(url) ? 'video' : 'image'
+        return { type, url } as const
+      })
+
+      const uploadedMedia = await Promise.all(uploadPromises)
+      setReviewPreviewMedia(prev => [...prev, ...uploadedMedia] as Review["media"])
+      toast.success(`${uploadedMedia.length} image(s) uploaded successfully`)
+    } catch (error) {
+      console.error("Error uploading images:", error)
+      toast.error("Failed to upload images")
+    } finally {
+      setUploadingImage(false)
+      // Reset input
+      event.target.value = ''
+    }
+  }
+
   const isReviewMediaValid = reviewPreviewMedia.length >= 1 && reviewPreviewMedia.length <= MAX_REVIEW_IMAGES
 
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!isReviewMediaValid) {
@@ -174,31 +346,58 @@ export default function AdminReviewsPage() {
 
     const location = [reviewForm.city.trim(), reviewForm.country.trim()].filter(Boolean).join(", ") || "Unknown location"
 
-    const cleanReview: Review = {
-      id: reviewEditingId || String(Date.now()),
-      customerName: reviewForm.customerName.trim() || "Unnamed Customer",
-      customerAvatar: reviewForm.customerAvatar || "/placeholder-user.jpg",
-      location,
-      rating: Number(reviewForm.rating) || 5,
-      comment: reviewForm.comment.trim() || "No comment provided",
-      productName: reviewForm.productName.trim() || "Unknown product",
-      productImage: reviewForm.productImage || "/placeholder.jpg",
-      media: reviewPreviewMedia,
-      likes: Number(reviewForm.likes) || 0,
-      date: reviewForm.date || new Date().toISOString().split("T")[0],
-      comments: [],
-    }
-
-    setReviewList((prev) => {
-      if (reviewEditingId) {
-        return prev.map((review) => (review.id === reviewEditingId ? cleanReview : review))
+    try {
+      const reviewData = {
+        customer_name: reviewForm.customerName.trim() || "Unnamed Customer",
+        customer_avatar: reviewForm.customerAvatar || "/placeholder-user.jpg",
+        location,
+        rating: Number(reviewForm.rating) || 5,
+        comment: reviewForm.comment.trim() || "No comment provided",
+        product_name: reviewForm.productName.trim() || "Unknown product",
+        product_id: reviewForm.productId || null,
+        product_image: reviewForm.productImage || "https://res.cloudinary.com/deafv5ovi/image/upload/v1785659333/product_kbhg7v.png",
+        media: reviewPreviewMedia,
+        likes: Number(reviewForm.likes) || 0,
+        date: reviewForm.date || new Date().toISOString().split("T")[0],
+        is_approved: true,
+        is_featured: false,
       }
 
-      return [cleanReview, ...prev]
-    })
+      let review: any
+      if (reviewEditingId) {
+        const { data, error } = await supabase
+          .from("reviews")
+          .update(reviewData)
+          .eq("id", reviewEditingId)
+          .select()
+          .single()
 
-    toast.success(reviewEditingId ? "Review updated successfully" : "Review added successfully")
-    resetReviewForm()
+        if (error) throw error
+        review = data
+
+        setReviewList((prev) =>
+          prev.map((r) => (r.id === reviewEditingId ? { ...r, ...review } : r))
+        )
+        toast.success("Review updated successfully")
+      } else {
+        const { data, error } = await supabase
+          .from("reviews")
+          .insert([reviewData])
+          .select()
+          .single()
+
+        if (error) throw error
+        review = data
+
+        setReviewList((prev) => [review, ...prev])
+        toast.success("Review added successfully")
+      }
+
+      resetReviewForm()
+    } catch (error) {
+      console.error("Error saving review:", error)
+      toast.error("Failed to save review")
+    }
   }
 
   const totalPages = Math.ceil(reviewList.length / reviewsPerPage)
@@ -245,12 +444,94 @@ export default function AdminReviewsPage() {
     window.location.href = "/admin/login"
   }
 
+  const deleteReviewWrapper = (reviewId: string, customerName: string) => {
+    setReviewToDelete({ id: reviewId, customerName })
+    setShowDeleteModal(true)
+  }
+
+  const handleViewComments = async (reviewId: string) => {
+    try {
+      const response = await fetch(`/api/reviews/${reviewId}/comments`)
+      if (response.ok) {
+        const comments = await response.json()
+        setSelectedReviewComments(comments)
+        setSelectedReviewId(reviewId)
+        setShowCommentsModal(true)
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error)
+      toast.error("Failed to load comments")
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!selectedReviewId || deletingComment) return
+
+    setDeletingComment(true)
+    try {
+      const response = await fetch(`/api/reviews/${selectedReviewId}/comments`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ comment_id: commentId }),
+      })
+
+      if (response.ok) {
+        setSelectedReviewComments((prev) => prev.filter((c) => c.id !== commentId))
+        toast.success("Comment deleted successfully")
+      } else {
+        toast.error("Failed to delete comment")
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error)
+      toast.error("Failed to delete comment")
+    } finally {
+      setDeletingComment(false)
+    }
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!reviewToDelete) return
+
+    setDeleting(true)
+    try {
+      const { error } = await supabase
+        .from("reviews")
+        .delete()
+        .eq("id", reviewToDelete.id)
+
+      if (error) throw error
+
+      setReviewList((prev) => prev.filter((r) => r.id !== reviewToDelete.id))
+      toast.success("Review deleted successfully")
+      setShowDeleteModal(false)
+      setReviewToDelete(null)
+    } catch (error) {
+      console.error("Error deleting review:", error)
+      toast.error("Failed to delete review")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (!mounted || authChecking) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Verifying access...</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (loadingReviews) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading reviews...</p>
         </div>
       </main>
     )
@@ -316,12 +597,28 @@ export default function AdminReviewsPage() {
                               >
                                 <X className="w-3 h-3" />
                               </button>
-                              <img src={media.url} alt={`Review media ${index + 1}`} className="w-full h-full object-cover" />
+                              {media.type === 'video' ? (
+                                <video src={media.url} className="w-full h-full object-cover" />
+                              ) : (
+                                <img src={media.url} alt={`Review media ${index + 1}`} className="w-full h-full object-cover" />
+                              )}
                             </>
                           ) : (
-                            <div className="flex h-full items-center justify-center text-muted-foreground">
-                              <Plus className="w-5 h-5 sm:w-8 sm:h-8" />
-                            </div>
+                            <label className="flex h-full cursor-pointer items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                              <input
+                                type="file"
+                                accept="image/*,video/*"
+                                multiple
+                                onChange={handleImageUpload}
+                                className="hidden"
+                                disabled={uploadingImage}
+                              />
+                              {uploadingImage ? (
+                                <Loader2 className="w-5 h-5 sm:w-8 sm:h-8 animate-spin" />
+                              ) : (
+                                <Upload className="w-5 h-5 sm:w-8 sm:h-8" />
+                              )}
+                            </label>
                           )}
                         </div>
                       )
@@ -403,13 +700,24 @@ export default function AdminReviewsPage() {
                     </label>
 
                     <label className="flex flex-col gap-2">
-                      <span className="text-sm font-medium text-foreground">Product Name</span>
-                      <input
-                        type="text"
-                        value={reviewForm.productName}
-                        onChange={(e) => handleReviewFieldChange("productName", e.target.value)}
+                      <span className="text-sm font-medium text-foreground">Product</span>
+                      <select
+                        value={reviewForm.productId}
+                        onChange={(e) => handleProductSelect(e.target.value)}
                         className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      >
+                        <option value="">Select a product</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                      {reviewForm.productName && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Selected: {reviewForm.productName}
+                        </p>
+                      )}
                     </label>
 
                     <label className="flex flex-col gap-2">
@@ -460,6 +768,65 @@ export default function AdminReviewsPage() {
             </DialogContent>
           </Dialog>
 
+          {/* Delete Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showDeleteModal}
+            onClose={() => {
+              setShowDeleteModal(false)
+              setReviewToDelete(null)
+            }}
+            onConfirm={handleDeleteConfirm}
+            title="Delete Review"
+            message={`Are you sure you want to delete the review from "${reviewToDelete?.customerName}"? This action cannot be undone.`}
+            confirmText="Yes, Delete"
+            cancelText="Cancel"
+            variant="danger"
+          />
+
+          {/* Comments Modal */}
+          <Dialog open={showCommentsModal} onOpenChange={setShowCommentsModal}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+              <DialogHeader>
+                <DialogTitle>Review Comments</DialogTitle>
+                <DialogDescription>
+                  Manage comments for this review
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="overflow-y-auto flex-1 -mx-2 px-2">
+                {selectedReviewComments.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">No comments yet</p>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedReviewComments.map((comment) => (
+                      <div key={comment.id} className="flex gap-3 p-4 rounded-xl border border-border/50 bg-background">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          <User className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-sm font-semibold text-foreground">{comment.authorName}</h4>
+                            <span className="text-xs text-muted-foreground">{comment.date}</span>
+                          </div>
+                          <p className="text-sm text-foreground/80 mb-2">{comment.text}</p>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteComment(comment.id)}
+                            disabled={deletingComment}
+                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6">
             {currentReviews.map((review) => (
               <div key={review.id} className="relative transition-all duration-300">
@@ -469,14 +836,32 @@ export default function AdminReviewsPage() {
                   actionLabel="Edit review"
                 />
 
-                <button
-                  type="button"
-                  onClick={() => editReview(review)}
-                  className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-foreground shadow-sm border border-border hover:bg-white cursor-pointer"
-                >
-                  <Pencil className="w-3 h-3" />
-                  Edit
-                </button>
+                <div className="absolute top-3 right-3 flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleViewComments(review.id)}
+                    className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-foreground shadow-sm border border-border hover:bg-white cursor-pointer"
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                    Comments
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editReview(review)}
+                    className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-foreground shadow-sm border border-border hover:bg-white cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteReviewWrapper(review.id, review.customerName)}
+                    className="inline-flex items-center gap-1 rounded-full bg-red-500/90 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-white shadow-sm border border-red-600 hover:bg-red-600 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>

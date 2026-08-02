@@ -5,12 +5,14 @@ import dynamic from "next/dynamic"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play } from "lucide-react"
+import { ChevronLeft, Minus, Plus, ChevronDown, Leaf, Heart, Award, Recycle, Star, Check, Play, MessageCircle, User } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { useCart } from "@/components/providers/cart-context"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { supabase, type Product } from "@/lib/supabase"
 import { getOptimizedProductImage } from "@/lib/cloudinary/image-utils"
+import { type ReviewComment } from "@/components/sections/reviews-data"
 import { isVideoUrl, getSafeVideoUrl } from "@/lib/cloudinary"
 import { ThumbnailVideo } from "./components/thumbnail-video"
 
@@ -59,6 +61,8 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
   const [isAdded, setIsAdded] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [preloaded, setPreloaded] = useState(false)
+  const [showCommentsModal, setShowCommentsModal] = useState(false)
+  const [productComments, setProductComments] = useState<ReviewComment[]>([])
 
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
@@ -214,6 +218,27 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
       image: getOptimizedProductImage(realImages[0] || "/placeholder.svg", "card")
     })
     setIsOpen(true)
+  }
+
+  const handleViewProductComments = async () => {
+    try {
+      // Fetch reviews for this product
+      const response = await fetch(`/api/reviews?product_id=${product.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        // Extract all comments from all reviews
+        const allComments: ReviewComment[] = []
+        data.reviews?.forEach((review: any) => {
+          if (review.comments && Array.isArray(review.comments)) {
+            allComments.push(...review.comments)
+          }
+        })
+        setProductComments(allComments)
+        setShowCommentsModal(true)
+      }
+    } catch (error) {
+      console.error("Error fetching product comments:", error)
+    }
   }
 
   const goToPrevImage = () => {
@@ -399,6 +424,14 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
                   </div>
                   <span className="text-sm text-muted-foreground">({product.review_count} reviews)</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleViewProductComments}
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  View Comments
+                </button>
                 <p className="text-foreground/80 leading-relaxed">
                   {product.description || `${product.name} is a premium quality hair product designed to enhance your natural beauty and elevate your style`}
                 </p>
@@ -495,6 +528,42 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
           </div>
         </section>
       )}
+      
+      {/* Comments Modal */}
+      <Dialog open={showCommentsModal} onOpenChange={setShowCommentsModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Product Comments</DialogTitle>
+            <DialogDescription>
+              All comments from customer reviews
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="overflow-y-auto flex-1 -mx-2 px-2">
+            {productComments.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No comments yet</p>
+            ) : (
+              <div className="space-y-4">
+                {productComments.map((comment) => (
+                  <div key={comment.id} className="flex gap-3 p-4 rounded-xl border border-border/50 bg-background">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-grow min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-sm font-semibold text-foreground">{comment.authorName}</h4>
+                        <span className="text-xs text-muted-foreground">{comment.date}</span>
+                      </div>
+                      <p className="text-sm text-foreground/80">{comment.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       <Footer />
     </>
   )
