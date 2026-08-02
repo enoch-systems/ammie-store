@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Plus, X, Search, Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -454,14 +455,23 @@ export default function AdminPage() {
               <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl text-foreground mb-1 sm:mb-2">Admin Dashboard</h1>
               <p className="text-sm sm:text-base text-muted-foreground">Manage all products</p>
             </div>
-            <button
-              type="button"
-              onClick={openAddForm}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 sm:px-6 py-3 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 boty-shadow cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Add Product
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={openAddForm}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 sm:px-6 py-3 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 boty-shadow cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Add Product
+              </button>
+              <Link
+                href="/admin/reviews"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-5 sm:px-6 py-3 rounded-full text-sm tracking-wide boty-transition hover:bg-blue-700 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Open Reviews Page
+              </Link>
+            </div>
           </div>
 
           {/* Search Input - Centered and Responsive */}
@@ -550,8 +560,9 @@ export default function AdminPage() {
             </div>
           )}
 
+
           {/* Products Grid - Same layout as shop page */}
-          <section>
+          <section className="mt-14 sm:mt-16">
             <div className="mb-6 sm:mb-8">
               <h2 className="font-serif text-xl sm:text-2xl md:text-3xl text-foreground">
                 {loading ? "Loading..." : `All Products (${filteredProducts.length})`}

@@ -10,9 +10,10 @@ import { Review } from "./reviews-data"
 interface ReviewCardProps {
   review: Review
   onViewMore?: (reviewId: string) => void
+  actionLabel?: string
 }
 
-export function ReviewCard({ review, onViewMore }: ReviewCardProps) {
+export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: ReviewCardProps) {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0)
   const mediaRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -41,7 +42,7 @@ export function ReviewCard({ review, onViewMore }: ReviewCardProps) {
 
   return (
     <div
-      className="bg-white rounded-none overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer"
+      className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer"
       onClick={handleNavigateToReview}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -54,7 +55,7 @@ export function ReviewCard({ review, onViewMore }: ReviewCardProps) {
     >
       {/* Media Carousel */}
       {review.media.length > 0 && (
-        <div className="relative bg-muted/30 rounded-t-none">
+        <div className="relative bg-muted/30 rounded-t-2xl">
           <div
             ref={mediaRef}
             onScroll={handleScroll}
@@ -120,31 +121,29 @@ export function ReviewCard({ review, onViewMore }: ReviewCardProps) {
       )}
 
       {/* Review Content */}
-      <div className="p-3 md:p-4 flex flex-col flex-grow">
+      <div className="p-2.5 md:p-4 flex flex-col flex-grow">
         {/* Customer Info */}
-        <div className="flex items-start gap-2.5 mb-2.5">
+        <div className="flex items-center gap-1.5 mb-1">
           <Image
             src={review.customerAvatar}
             alt={review.customerName}
-            width={40}
-            height={40}
-            className="rounded-full object-cover flex-shrink-0"
+            width={20}
+            height={20}
+            className="w-5 h-5 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0"
           />
           <div className="flex-grow min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-semibold text-foreground text-xs md:text-sm truncate">{review.customerName}</h3>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                {[...Array(review.rating)].map((_, i) => (
-                  <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                ))}
-              </div>
+            <h3 className="font-semibold text-foreground text-[11px] md:text-sm truncate mb-0.5">{review.customerName}</h3>
+            <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{review.location}</p>
+            <div className="flex items-center gap-0.5">
+              {[...Array(review.rating)].map((_, i) => (
+                <Star key={i} className="w-1.5 h-1.5 md:w-3 md:h-3 fill-yellow-400 text-yellow-400" />
+              ))}
             </div>
-            <p className="text-[10px] md:text-xs text-muted-foreground">{review.location}</p>
           </div>
         </div>
 
         {/* Comment */}
-        <p className="text-xs md:text-sm text-foreground/80 leading-relaxed mb-2.5 line-clamp-3 flex-grow">
+        <p className="text-[9px] md:text-xs text-foreground/80 leading-relaxed mb-1.5 line-clamp-3 flex-grow">
           {review.comment}
         </p>
 
@@ -155,37 +154,35 @@ export function ReviewCard({ review, onViewMore }: ReviewCardProps) {
             event.stopPropagation()
             handleNavigateToReview()
           }}
-          className="flex items-center gap-2 mb-2.5 pb-2.5 border-b border-border/50 w-full text-left cursor-pointer"
+          className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-border/50 w-full text-left cursor-pointer"
         >
-          <div className="relative w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+          <div className="relative w-6 h-6 md:w-10 md:h-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
             <Image
               src={purchasedImage}
               alt={review.productName}
               fill
               className="object-cover"
-              sizes="32px"
+              sizes="28px"
             />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] md:text-xs text-muted-foreground">Purchased</p>
-            <p className="text-xs md:text-sm font-medium text-foreground truncate">{review.productName}</p>
+            <p className="text-[8px] md:text-xs text-muted-foreground">Purchased</p>
+            <p className="text-[9px] md:text-sm font-medium text-foreground truncate">{review.productName}</p>
           </div>
         </button>
 
         {/* Actions */}
-        <div className="flex items-center justify-end pt-2">
+        <div className="flex items-center justify-center pt-1.5">
           {onViewMore && (
-            <Link
-              href={`/reviews/${review.id}`}
+            <button
               onClick={(e) => {
-                e.preventDefault()
+                e.stopPropagation()
                 onViewMore(review.id)
               }}
-              className="inline-flex items-center gap-1 text-[10px] md:text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+              className="inline-flex items-center px-3 py-1.5 text-[10px] md:text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-full transition-all duration-200"
             >
-              <span>View More</span>
-              <span aria-hidden="true">&gt;</span>
-            </Link>
+              <span>{actionLabel}</span>
+            </button>
           )}
         </div>
       </div>

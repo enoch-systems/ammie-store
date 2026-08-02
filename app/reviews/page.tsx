@@ -12,8 +12,10 @@ import { reviews } from "@/components/sections/reviews-data"
 export default function ReviewsPage() {
   const [headerVisible, setHeaderVisible] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const headerRef = useRef<HTMLDivElement>(null)
   const sectionRef = useRef<HTMLDivElement>(null)
+  const reviewsPerPage = 12
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -47,11 +49,53 @@ export default function ReviewsPage() {
     window.location.href = `/reviews/${reviewId}`
   }
 
+  const totalPages = Math.ceil(reviews.length / reviewsPerPage)
+  const startIndex = (currentPage - 1) * reviewsPerPage
+  const endIndex = startIndex + reviewsPerPage
+  const currentReviews = reviews.slice(startIndex, endIndex)
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1)
+    }
+  }
+
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1)
+    }
+  }
+
+  // Generate page numbers to display (sliding window of 3 consecutive pages)
+  const getPageNumbers = () => {
+    const pages: number[] = []
+    
+    // Show 3 consecutive pages: 1,2,3 or 2,3,4 or 3,4,5 etc.
+    let startPage = Math.max(1, currentPage - 1)
+    let endPage = Math.min(totalPages, startPage + 2)
+    
+    // Adjust if we're at the end to always show 3 pages
+    if (endPage - startPage < 2) {
+      startPage = Math.max(1, endPage - 2)
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i)
+    }
+
+    return pages
+  }
+
   return (
     <main className="min-h-screen">
       <Header />
 
-      <div className="pt-20 pb-20">
+      <div className="pt-24 pb-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           {/* Header */}
           <div ref={headerRef} className="text-center mb-16">
@@ -68,12 +112,12 @@ export default function ReviewsPage() {
 
           {/* Reviews Grid */}
           <div ref={sectionRef} className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 lg:gap-6 ${isVisible ? 'animate-fade-in' : 'opacity-0'}`} style={isVisible ? { animationDelay: '0.8s', animationFillMode: 'forwards' } : {}}>
-            {reviews.map((review, index) => (
+            {currentReviews.map((review, index) => (
               <div
                 key={review.id}
                 className="transition-all duration-700 ease-out"
                 style={{ 
-                  animationDelay: `${index * 100}ms`,
+                  animationDelay: `${index * 50}ms`,
                   animationFillMode: 'forwards'
                 }}
               >
@@ -81,6 +125,54 @@ export default function ReviewsPage() {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-12">
+              {/* Previous Button */}
+              <button
+                onClick={handlePrevious}
+                disabled={currentPage === 1}
+                className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium transition-all duration-200 ${
+                  currentPage === 1
+                    ? 'text-muted-foreground/20 cursor-not-allowed'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              {/* Page Numbers */}
+              <div className="flex items-center gap-3">
+                {getPageNumbers().map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium transition-all duration-200 ${
+                      currentPage === page
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={handleNext}
+                disabled={currentPage === totalPages}
+                className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-medium transition-all duration-200 ${
+                  currentPage === totalPages
+                    ? 'text-muted-foreground/20 cursor-not-allowed'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
