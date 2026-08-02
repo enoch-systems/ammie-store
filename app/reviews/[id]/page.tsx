@@ -18,6 +18,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
   const [comments, setComments] = useState<ReviewComment[]>(review?.comments || [])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalImageIndex, setModalImageIndex] = useState(0)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [isNameModalOpen, setIsNameModalOpen] = useState(false)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [userName, setUserName] = useState("")
@@ -124,6 +125,39 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
   const showPrevModalImage = () => {
     setModalImageIndex((prev) => (prev - 1 + review.media.length) % review.media.length)
     setIsVideoPlaying(false)
+  }
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    setTouchStartX(event.changedTouches[0]?.clientX ?? null)
+  }
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartX === null || review.media.length <= 1) return
+
+    const touchEndX = event.changedTouches[0]?.clientX ?? 0
+    const deltaX = touchEndX - touchStartX
+
+    if (Math.abs(deltaX) > 50) {
+      if (deltaX < 0) {
+        showNextModalImage()
+      } else {
+        showPrevModalImage()
+      }
+    }
+
+    setTouchStartX(null)
+  }
+
+  const handleBackdropInteraction = (
+    event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>
+  ) => {
+    const target = event.target as HTMLElement
+
+    if (target.closest("[data-lightbox-content='true']")) {
+      return
+    }
+
+    closeModal()
   }
 
   const purchasedImage = review.productImage && review.productImage !== "/placeholder.jpg"
@@ -409,7 +443,8 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
       {isModalOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90"
-          onClick={closeModal}
+          onClick={handleBackdropInteraction}
+          onTouchEnd={handleBackdropInteraction}
           aria-label="Close image viewer"
         >
           <div
@@ -430,8 +465,11 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
 
             {/* Image Container */}
             <div 
+              data-lightbox-content="true"
               className="pointer-events-auto relative mx-4 h-[80vh] w-full max-w-5xl"
               onClick={(e) => e.stopPropagation()}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
             >
               {review.media[modalImageIndex].type === 'image' ? (
                 <Image
@@ -466,24 +504,37 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); closeModal(); }}
-                className="pointer-events-auto absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-foreground shadow-lg transition hover:bg-white"
-                aria-label="Close image viewer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-
-              {/* Image Counter */}
+              {/* Image Dots */}
               {review.media.length > 1 && (
-                <div 
-                  className="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-sm text-white"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {modalImageIndex + 1} / {review.media.length}
+                <div className="pointer-events-auto absolute bottom-16 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                  {review.media.map((_, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setModalImageIndex(index)
+                      }}
+                      className={`h-2.5 rounded-full transition-all ${
+                        index === modalImageIndex ? "w-7 bg-white" : "w-2.5 bg-white/50"
+                      }`}
+                      aria-label={`Go to image ${index + 1}`}
+                    />
+                  ))}
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  closeModal()
+                }}
+                className="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/30 bg-white/10 px-5 py-2 text-sm font-medium text-white shadow-lg backdrop-blur-md transition hover:bg-white/20"
+                aria-label="Close image viewer"
+              >
+                Close
+              </button>
             </div>
 
             {/* Next Button */}
