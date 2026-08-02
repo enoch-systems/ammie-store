@@ -54,13 +54,13 @@ export function ReviewsSection() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         {/* Header */}
         <div ref={headerRef} className="text-center mb-8 md:mb-12 pb-8 md:pb-12 border-b border-border/30 rounded-b-3xl">
-          <span className={`text-xs md:text-sm tracking-[0.2em] uppercase text-primary mb-2 md:mb-3 block ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.2s', animationFillMode: 'forwards' } : {}}>
+          <span className={`text-sm tracking-[0.3em] uppercase text-primary mb-4 block ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.2s', animationFillMode: 'forwards' } : {}}>
             Customer Reviews
           </span>
-          <h2 className={`font-serif text-2xl md:text-4xl lg:text-6xl leading-tight text-foreground text-balance mb-3 md:mb-4 ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.4s', animationFillMode: 'forwards' } : {}}>
+          <h2 className={`font-serif text-4xl leading-tight text-foreground mb-6 text-balance md:text-7xl ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.4s', animationFillMode: 'forwards' } : {}}>
             What our customers say
           </h2>
-          <p className={`text-muted-foreground max-w-2xl mx-auto text-sm md:text-base lg:text-lg ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.6s', animationFillMode: 'forwards' } : {}}>
+          <p className={`text-base sm:text-lg text-muted-foreground leading-relaxed mx-auto max-w-2xl ${headerVisible ? 'animate-blur-in opacity-0' : 'opacity-0'}`} style={headerVisible ? { animationDelay: '0.6s', animationFillMode: 'forwards' } : {}}>
             Real reviews from real customers who love our products
           </p>
         </div>
