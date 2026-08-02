@@ -4,11 +4,11 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
 const videoSources = [
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1784349848/herovide_gmwx0z.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1784539931/11111_2_p8px5y.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1784540017/11111_10_cngcxo.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1784539973/11111_5_cnb1gk.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1784539990/11111_1_e3pcgl.mp4",
+  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651848/2_3_hwiwns.mp4",
+  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651879/2_2_afapbv.mp4",
+  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651872/2_10_eu4kbh.mp4",
+  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651894/2_4_yfaxbx.mp4",
+  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651837/2_8_u7tuvr.mp4",
 ]
 
 export function Hero() {
@@ -42,14 +42,14 @@ export function Hero() {
       <div className="relative z-10 w-full pt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="w-full max-w-lg lg:max-w-xl mx-auto text-center lg:text-left">
-            <span className="text-sm uppercase mb-6 block text-[#C4A882] lg:text-black animate-blur-in opacity-0 tracking-normal" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>
+            <span className="text-sm uppercase mb-6 block text-[#C4A882] md:text-[#C4A882] lg:text-[#C4A882] animate-blur-in opacity-0 tracking-normal" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>
               Premium Hair & Extensions
             </span>
-            <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6 text-[#C4A882] lg:text-black">
+            <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6 text-[#C4A882] md:text-[#C4A882] lg:text-[#C4A882]">
               <span className="block animate-blur-in opacity-0 font-semibold" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>Wear confidence.</span>
               <span className="block animate-blur-in opacity-0 font-semibold xl:text-9xl text-3xl sm:text-6xl md:text-7xl lg:text-8xl break-words" style={{ animationDelay: '0.6s', animationFillMode: 'forwards' }}>Naturally you.</span>
             </h2>
-            <p className="text-sm sm:text-base md:text-lg leading-relaxed mb-10 max-w-sm sm:max-w-md mx-auto text-[#D4B896] lg:text-black animate-blur-in opacity-0" style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}>
+            <p className="text-sm sm:text-base md:text-lg leading-relaxed mb-10 max-w-sm sm:max-w-md mx-auto text-[#D4B896] md:text-[#D4B896] lg:text-[#D4B896] animate-blur-in opacity-0" style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}>
               Premium wigs and hair extensions crafted for beauty, comfort, and effortless style.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-blur-in opacity-0" style={{ animationDelay: '1s', animationFillMode: 'forwards' }}>

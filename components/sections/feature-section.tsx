@@ -85,7 +85,7 @@ export function FeatureSection() {
               playsInline
               className="absolute inset-0 w-full h-full object-cover"
             >
-              <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1784539944/11111_13_vr3cbk.mp4" type="video/mp4" />
+              <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1785651872/2_10_eu4kbh.mp4" type="video/mp4" />
             </video>
           </div>
 

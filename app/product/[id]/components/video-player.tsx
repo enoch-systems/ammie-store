@@ -70,9 +70,10 @@ export function VideoPlayer({ videoUrl, posterUrl, alt }: { videoUrl: string; po
       })
 
       hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
-        console.error('HLS error:', data)
+        // Non-fatal errors (e.g. temporary network blips) are normal for HLS
+        // and hls.js recovers automatically. Only handle fatal failures.
         if (data.fatal) {
-          // HLS failed — fall back to MP4
+          console.warn('HLS fatal error, falling back to MP4:', data.type, data.details)
           hls.destroy()
           hlsRef.current = null
           const vid = vidRef.current

@@ -158,11 +158,11 @@ export function getFullCloudinaryVideoUrl(publicId: string): string {
  * - 'unknown': API not available — assume medium
  */
 export function getConnectionQuality(): 'slow' | 'medium' | 'fast' | 'unknown' {
-  if (typeof navigator === 'undefined' || !navigator.connection) {
+  if (typeof navigator === 'undefined' || !(navigator as any).connection) {
     return 'unknown'
   }
 
-  const conn = navigator.connection
+  const conn = (navigator as any).connection
 
   // Use effectiveType if available (Chrome, Edge, Samsung Internet)
   if (conn.effectiveType) {
@@ -192,10 +192,10 @@ export function getConnectionQuality(): 'slow' | 'medium' | 'fast' | 'unknown' {
  * Respects the Save-Data header (Chrome, Android browsers).
  */
 export function isDataSaverMode(): boolean {
-  if (typeof navigator === 'undefined' || !navigator.connection) {
+  if (typeof navigator === 'undefined' || !(navigator as any).connection) {
     return false
   }
-  return (navigator.connection as any).saveData === true
+  return (navigator as any).connection.saveData === true
 }
 
 /**
