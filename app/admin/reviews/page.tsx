@@ -897,27 +897,19 @@ export default function AdminReviewsPage() {
                   actionLabel="Edit review"
                 />
 
-                <div className="absolute top-3 right-3 flex gap-1.5">
+                <div className="absolute top-3 right-3 flex flex-col gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleViewComments(review.id)}
-                    className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-foreground shadow-sm border border-border hover:bg-white cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-foreground shadow-sm border border-border hover:bg-white cursor-pointer"
                   >
                     <MessageCircle className="w-3 h-3" />
                     Comments
                   </button>
                   <button
                     type="button"
-                    onClick={() => editReview(review)}
-                    className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-foreground shadow-sm border border-border hover:bg-white cursor-pointer"
-                  >
-                    <Pencil className="w-3 h-3" />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => deleteReviewWrapper(review.id, review.customerName)}
-                    className="inline-flex items-center gap-1 rounded-full bg-red-500/90 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-white shadow-sm border border-red-600 hover:bg-red-600 cursor-pointer"
+                    className="mt-6 inline-flex items-center justify-center gap-1 rounded-full bg-red-500/90 px-2.5 py-1 text-[10px] sm:text-xs font-medium text-white shadow-sm border border-red-600 hover:bg-red-600 cursor-pointer"
                   >
                     <Trash2 className="w-3 h-3" />
                     Delete
