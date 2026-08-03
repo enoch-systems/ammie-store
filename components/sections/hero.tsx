@@ -1,42 +1,58 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
-const videoSources = [
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651848/2_3_hwiwns.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651879/2_2_afapbv.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651872/2_10_eu4kbh.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651894/2_4_yfaxbx.mp4",
-  "https://res.cloudinary.com/deafv5ovi/video/upload/v1785651837/2_8_u7tuvr.mp4",
+const heroImages = [
+  "https://res.cloudinary.com/deafv5ovi/image/upload/v1785729916/WhatsApp_Image_2026-08-02_at_9.18.28_PM_xa9aol.jpg",
+  "https://res.cloudinary.com/deafv5ovi/image/upload/v1785729915/WhatsApp_Image_2026-08-02_at_9.18.29_PM_nehk7c.jpg",
 ]
 
 export function Hero() {
+  const [desktopOrder, setDesktopOrder] = useState([0, 1])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDesktopOrder((current) => [current[1], current[0]])
+    }, 2600)
+
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden" style={{ backgroundColor: '#e3e1e2' }}>
-      {/* Background Video Grid */}
-      <div className="absolute inset-0 border-b border-border/50 overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#e3e1e2' }}>
-        {/* Mobile: 1 video */}
-        <div className="grid grid-cols-1 vsm:grid-cols-2 vmd:grid-cols-3 vlg:grid-cols-4 vxl:grid-cols-5 gap-0 w-full h-full mx-auto px-0 sm:px-6 lg:px-2 xl:px-4 py-8 md:py-12 lg:py-16">
-          {videoSources.map((src, i) => (
-            <div key={i} className={`relative w-full h-full min-h-[50vh] md:min-h-[60vh] lg:min-h-[70vh] overflow-hidden rounded-2xl ${i === 1 ? 'hidden vsm:block' : ''} ${i === 2 ? 'hidden vmd:block' : ''} ${i === 3 ? 'hidden vlg:block' : ''} ${i === 4 ? 'hidden vxl:block' : ''}`}>
-              <video
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="auto"
-                className="absolute inset-0 w-full h-full object-cover"
-              >
-                <source src={src} type="video/mp4" />
-              </video>
+      <div className="absolute inset-0 border-b border-border/50 overflow-hidden xl:top-[8%] xl:h-[92%] xl:rounded-b-[2rem]">
+        <div className="hidden xl:flex h-full w-full gap-4 px-4">
+          {desktopOrder.map((index) => (
+            <div key={`${heroImages[index]}-${index}`} className="h-full flex-1 overflow-hidden rounded-[1.5rem] transition-all duration-700 ease-in-out">
+              <img
+                src={heroImages[index]}
+                alt="Ammie N premium hair collection"
+                className="h-full w-full object-cover"
+                style={{
+                  objectPosition: "center center",
+                  filter: "saturate(0.9) contrast(1.02)",
+                }}
+              />
             </div>
           ))}
-          {/* Subtle blend between videos */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-background/10 to-transparent vsm:from-background/5 vsm:via-background/5 vsm:to-background/5 vmd:from-background/5 vmd:via-background/5 vmd:to-background/5 vlg:from-background/5 vlg:via-background/5 vlg:to-background/5 vxl:from-background/5 vxl:via-background/5 vxl:to-background/5" style={{ zIndex: 1 }} />
         </div>
-        {/* Bottom fade gradient */}
-        <div className="absolute bottom-0 left-0 right-0 h-[60%] bg-gradient-to-t from-background via-background/50 to-transparent" />
+
+        <div className="xl:hidden absolute inset-0">
+          <img
+            src={heroImages[0]}
+            alt="Ammie N premium hair collection"
+            className="h-full w-full object-cover"
+            style={{
+              objectPosition: "center center",
+              filter: "saturate(0.9) contrast(1.02)",
+            }}
+          />
+        </div>
+
+        <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-black/10 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/35 to-transparent" />
       </div>
 
       {/* Content */}

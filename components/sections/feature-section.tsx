@@ -1,13 +1,17 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import Image from "next/image"
-import { Recycle, Leaf, Flower2, Globe } from "lucide-react"
+
+const featureImages = [
+  "https://res.cloudinary.com/deafv5ovi/image/upload/v1785729916/WhatsApp_Image_2026-08-02_at_9.18.28_PM_xa9aol.jpg",
+  "https://res.cloudinary.com/deafv5ovi/image/upload/v1785729915/WhatsApp_Image_2026-08-02_at_9.18.29_PM_nehk7c.jpg",
+]
 
 export function FeatureSection() {
   const [isVisible, setIsVisible] = useState(false)
   const [isVideoVisible, setIsVideoVisible] = useState(false)
   const [headerVisible, setHeaderVisible] = useState(false)
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
   const bentoRef = useRef<HTMLDivElement>(null)
   const videoSectionRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
@@ -65,6 +69,14 @@ export function FeatureSection() {
     }
   }, [])
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveImageIndex((current) => (current + 1) % featureImages.length)
+    }, 3200)
+
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <section className="py-24 bg-background">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -72,21 +84,26 @@ export function FeatureSection() {
           ref={videoSectionRef}
           className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center my-0 py-20"
         >
-          {/* Video */}
+          {/* Image carousel */}
           <div 
-            className={`relative aspect-[4/5] rounded-3xl overflow-hidden boty-shadow transition-all duration-700 ease-out ${
+            className={`relative aspect-[4/5] overflow-hidden rounded-3xl boty-shadow transition-all duration-700 ease-out ${
               isVideoVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
           >
-            <video
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            >
-              <source src="https://res.cloudinary.com/deafv5ovi/video/upload/v1785651872/2_10_eu4kbh.mp4" type="video/mp4" />
-            </video>
+            {featureImages.map((image, index) => (
+              <img
+                key={image}
+                src={image}
+                alt="Why Ammie Hair"
+                className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out ${
+                  index === activeImageIndex ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6'
+                }`}
+                style={{
+                  objectPosition: 'center center',
+                  filter: 'saturate(0.9) contrast(1.02)',
+                }}
+              />
+            ))}
           </div>
 
           {/* Content */}
