@@ -16,7 +16,7 @@ const faqCategories = [
       },
       {
         q: "What is your shipping cost?",
-        a: "We offer free standard shipping on all orders over ₦100,000. For orders under ₦100,000, a flat shipping fee applies. Express shipping options are available at an additional cost."
+        a: "We offer free standard shipping on all orders over $100. For orders under $100, a flat shipping fee applies. Express shipping options are available at an additional cost."
       }
     ]
   },

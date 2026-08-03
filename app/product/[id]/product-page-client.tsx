@@ -23,6 +23,14 @@ const benefits = [
   { icon: Award, label: "Premium Quality" }
 ]
 
+const formatUsdPrice = (value: number | string) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0)
+
 type AccordionSection = "details" | "howToUse" | "ingredients" | "delivery"
 
 // Dynamically import the VideoPlayer — only loaded when a product has videos.
@@ -305,13 +313,13 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
     "offers": {
       "@type": "Offer",
       "url": `https://ammiestore.com/product/${product.id}`,
-      "priceCurrency": "NGN",
+      "priceCurrency": "USD",
       "price": product.price.toString(),
       "itemCondition": "https://schema.org/NewCondition",
       "availability": "https://schema.org/InStock",
       "shippingDetails": {
         "@type": "OfferShippingDetails",
-        "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "NGN" },
+        "shippingRate": { "@type": "MonetaryAmount", "value": "0", "currency": "USD" },
         "deliveryTime": {
           "@type": "ShippingDeliveryTime",
           "handlingTime": { "@type": "QuantitativeValue", "minValue": 1, "maxValue": 2, "unitCode": "DAY" },
@@ -437,7 +445,7 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
                 </p>
               </div>
               <div className="flex items-center gap-3 mb-8">
-                <span className="text-3xl font-medium text-foreground">₦{product.price.toLocaleString()}</span>
+                <span className="text-3xl font-medium text-foreground">{formatUsdPrice(product.price)}</span>
               </div>
               {sizesArray.length > 0 && (
                 <div className="mb-6">
@@ -514,7 +522,7 @@ export function ProductPageClient({ productId, initialProduct, initialSuggestion
                       <div className="p-3 md:p-5 pb-4">
                         <h3 className="font-serif text-sm md:text-lg text-foreground mb-0.5 md:mb-1">{suggestion.name}</h3>
                         <div className="flex items-center gap-2 mb-2 md:mb-3">
-                          <span className="text-xs md:text-base font-medium text-foreground">₦{suggestion.price.toLocaleString()}</span>
+                          <span className="text-xs md:text-base font-medium text-foreground">{formatUsdPrice(suggestion.price)}</span>
                         </div>
                         <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation() }} className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 md:px-4 md:py-2.5 rounded-full text-[10px] md:text-xs tracking-wide boty-transition hover:bg-primary/90 boty-shadow">
                           Add to Cart

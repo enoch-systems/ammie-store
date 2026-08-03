@@ -54,7 +54,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
           <span className="text-xs text-muted-foreground ml-1">({product.reviewCount})</span>
         </div>
                       <div className="flex items-center gap-2 mb-3">
-                        <span className="font-medium text-foreground">₦{Number(product.price).toLocaleString()}</span>
+                        <span className="font-medium text-foreground">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(product.price) || 0)}</span>
                       </div>
         <div className="flex gap-2">
           <button

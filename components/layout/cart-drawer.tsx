@@ -275,7 +275,7 @@ export function CartDrawer() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-medium text-foreground text-sm sm:text-base whitespace-nowrap">
-                        ₦{(item.price * item.quantity).toLocaleString()}
+                        {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((item.price * item.quantity) || 0)}
                       </p>
                     </div>
                   </div>
@@ -289,15 +289,15 @@ export function CartDrawer() {
               <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>₦{subtotal.toLocaleString()}</span>
+                  <span>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(subtotal || 0)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
-                  <span>{shipping === 0 ? 'Free' : `₦${shipping}`}</span>
+                  <span>{shipping === 0 ? 'Free' : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(shipping || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm sm:text-base font-medium text-foreground pt-2 sm:pt-2 border-t border-border/50">
                   <span>Total</span>
-                  <span>₦{total.toLocaleString()}</span>
+                  <span>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total || 0)}</span>
                 </div>
               </div>
 
@@ -540,12 +540,12 @@ export function CartDrawer() {
                 {items.map((item) => (
                   <div key={item.id} className="flex justify-between text-sm text-muted-foreground">
                     <span className="truncate mr-2">{item.name} × {item.quantity}</span>
-                    <span className="whitespace-nowrap">₦{(item.price * item.quantity).toLocaleString()}</span>
+                    <span className="whitespace-nowrap">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((item.price * item.quantity) || 0)}</span>
                   </div>
                 ))}
                 <div className="border-t border-border/50 pt-2 mt-2 flex justify-between font-medium text-foreground">
                   <span>Total</span>
-                  <span>₦{total.toLocaleString()}</span>
+                  <span>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total || 0)}</span>
                 </div>
               </div>
 
@@ -567,7 +567,7 @@ export function CartDrawer() {
                       Placing Order...
                     </>
                   ) : (
-                    `Place Order — ₦${total.toLocaleString()}`
+                    `Place Order — ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total || 0)}`
                   )}
                 </button>
                 <button

@@ -456,7 +456,7 @@ export default function InvoicePage() {
                         </td>
                         <td className="py-4 text-center text-neutral-600 text-sm font-medium align-top">{item.quantity}</td>
                         <td className="py-4 text-right pr-5 align-top font-semibold text-neutral-900 text-sm tabular-nums">
-                          ₦{(item.price * item.quantity).toLocaleString()}
+                          {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((item.price * item.quantity) || 0)}
                         </td>
                       </tr>
                     ))}
@@ -481,12 +481,12 @@ export default function InvoicePage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between items-baseline text-neutral-500 pb-3 border-b border-neutral-100">
                     <span>Subtotal</span>
-                    <span className="font-medium text-neutral-900 tabular-nums">₦{order.subtotal.toLocaleString()}</span>
+                    <span className="font-medium text-neutral-900 tabular-nums">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(order.subtotal || 0)}</span>
                   </div>
                   <div className="flex justify-between items-baseline pt-1">
                     <span className="text-base font-bold text-neutral-900">Total Due</span>
                     <span className="text-xl font-bold text-neutral-900 tabular-nums tracking-tight">
-                      ₦{order.total.toLocaleString()}
+                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(order.total || 0)}
                     </span>
                   </div>
                 </div>

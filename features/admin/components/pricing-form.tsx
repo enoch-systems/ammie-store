@@ -14,6 +14,14 @@ const availableSizes = [
   "8", "10", "12", "14", "16", "18", "20", "22", "24", "26", "28", "30"
 ]
 
+const formatUsdPrice = (value: number | string) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0)
+
 export default function PricingForm({ price, sizes, onSizesChange, onChange }: PricingFormProps) {
   const [customSize, setCustomSize] = useState("")
   const [editingSize, setEditingSize] = useState<string | null>(null)
@@ -78,13 +86,13 @@ export default function PricingForm({ price, sizes, onSizesChange, onChange }: P
     <div className="flex flex-col gap-6">
       {/* Price */}
       <div>
-        <label className="text-sm font-medium text-foreground mb-1.5 block">Price (₦)</label>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">Price (USD)</label>
         <input
           type="text"
           inputMode="numeric"
           value={price ? Number(price).toLocaleString("en-US") : ""}
           onChange={(e) => onChange("price", e.target.value.replace(/[^0-9]/g, ""))}
-          placeholder="220,000"
+          placeholder="220.00"
           required
           className="w-full bg-card border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
         />

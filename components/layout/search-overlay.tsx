@@ -125,7 +125,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                             Premium quality hair product
                           </p>
                           <p className="text-xs sm:text-sm font-medium text-foreground">
-                            ₦{product.price.toLocaleString()}
+                            {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(product.price) || 0)}
                           </p>
                         </div>
                       </Link>

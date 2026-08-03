@@ -19,6 +19,14 @@ interface FeaturedProduct {
   description: string
 }
 
+const formatUsdPrice = (value: number | string) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0)
+
 export function ProductGrid() {
   const { data: products = [], isLoading: loading } = useLatestProducts(6)
   const queryClient = useQueryClient()
@@ -216,7 +224,7 @@ export function ProductGrid() {
                   <h3 className="font-serif text-sm md:text-lg text-foreground mb-0.5 md:mb-1">{product.name}</h3>
                   <p className="text-xs md:text-sm text-muted-foreground mb-2 md:mb-3 line-clamp-2">{product.description ? product.description.split(' ').slice(0, 7).join(' ') + (product.description.split(' ').length > 7 ? '...' : '') : 'Premium quality hair product'}</p>
                   <div className="flex items-center gap-2 mb-2 md:mb-4">
-                    <span className="text-xs md:text-base font-medium text-foreground">₦{product.price.toLocaleString()}</span>
+                    <span className="text-xs md:text-base font-medium text-foreground">{formatUsdPrice(product.price)}</span>
                   </div>
                   <button
                     type="button"

@@ -53,7 +53,7 @@ export default function ProductGrid({ products, onEdit, onDelete }: ProductGridP
               <h3 className="font-serif text-xs sm:text-sm md:text-lg text-foreground mb-0.5 md:mb-1 leading-tight">{product.name}</h3>
               <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground mb-1.5 sm:mb-2 md:mb-3 leading-tight line-clamp-2">{product.description ? product.description.split(' ').slice(0, 7).join(' ') + (product.description.split(' ').length > 7 ? '...' : '') : 'Premium quality hair product'}</p>
               <div className="flex items-center gap-1 sm:gap-2 mb-1.5 sm:mb-2 md:mb-3">
-                <span className="text-[10px] sm:text-xs md:text-base font-medium text-foreground">₦{product.price.toLocaleString()}</span>
+                <span className="text-[10px] sm:text-xs md:text-base font-medium text-foreground">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(product.price) || 0)}</span>
               </div>
               <div className="flex gap-1.5 sm:gap-2">
                 <button
