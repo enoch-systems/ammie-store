@@ -337,10 +337,23 @@ export default function AdminReviewsPage() {
       return
     }
 
-    const remainingSlots = MAX_REVIEW_IMAGES - reviewPreviewMedia.length
-    const filesToUpload = Array.from(files).slice(0, remainingSlots)
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    const selectedFiles = Array.from(files)
+    const invalidFile = selectedFiles.find((file) => {
+      const isAllowed = allowedTypes.includes(file.type) || file.type.startsWith('image/')
+      return !isAllowed
+    })
 
-    if (files.length > filesToUpload.length) {
+    if (invalidFile) {
+      toast.error('Only JPG, PNG, and WebP images are supported for reviews.')
+      event.target.value = ''
+      return
+    }
+
+    const remainingSlots = MAX_REVIEW_IMAGES - reviewPreviewMedia.length
+    const filesToUpload = selectedFiles.slice(0, remainingSlots)
+
+    if (selectedFiles.length > filesToUpload.length) {
       toast.info(`Only the first ${filesToUpload.length} selected files were added. The review keeps up to ${MAX_REVIEW_IMAGES} images.`)
     }
 
@@ -348,8 +361,7 @@ export default function AdminReviewsPage() {
     try {
       const uploadPromises = filesToUpload.map(async (file) => {
         const url = await uploadToCloudinary(file)
-        const type = isVideoUrl(url) ? 'video' : 'image'
-        return { type, url } as const
+        return { type: 'image' as const, url }
       })
 
       const uploadedMedia = await Promise.all(uploadPromises)
@@ -627,17 +639,13 @@ export default function AdminReviewsPage() {
                               >
                                 <X className="w-3 h-3" />
                               </button>
-                              {media.type === 'video' ? (
-                                <video src={media.url} className="w-full h-full object-cover" />
-                              ) : (
-                                <img src={media.url} alt={`Review media ${index + 1}`} className="w-full h-full object-cover" />
-                              )}
+                              <img src={media.url} alt={`Review media ${index + 1}`} className="w-full h-full object-cover" />
                             </>
                           ) : (
                             <label className="flex h-full cursor-pointer items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                               <input
                                 type="file"
-                                accept="image/*,video/*"
+                                accept="image/*"
                                 multiple
                                 onChange={handleImageUpload}
                                 className="hidden"
@@ -658,7 +666,7 @@ export default function AdminReviewsPage() {
                       <label className="col-span-4 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/60 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground">
                         <input
                           type="file"
-                          accept="image/*,video/*"
+                          accept="image/*"
                           multiple
                           onChange={handleImageUpload}
                           className="hidden"

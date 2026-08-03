@@ -55,27 +55,12 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
       truncatedNotice = `Only the first ${maxMultiple} images were used — up to ${maxMultiple} images can be added at once.`
     }
 
-    // Validate file types before uploading
-    // Slot 0 (main image) accepts both images AND videos
-    // Slots 1-4 only accept images
     for (const file of filesArray) {
+      const isImageFile = allowedTypes.includes(file.type) || file.type.startsWith("image/")
       const isVideoFile = file.type.startsWith("video/")
-      const isImageFile = allowedTypes.includes(file.type)
-      
-      if (isVideoFile) {
-        // Only slot 0 and multiple uploads can contain videos
-        // For multiple upload, skip video files silently
-        if (!isMultiple && sourceIndex !== 0) {
-          setUploadError('Videos can only be added as the main image (first slot).')
-          return
-        }
-        if (isMultiple) {
-          // Skip video files in multiple upload — only images allowed
-          setUploadError('Multiple upload only supports images. Use single upload for videos.')
-          return
-        }
-      } else if (!isImageFile) {
-        setUploadError('Invalid file type. Please upload JPG, PNG, WebP, or MP4/WebM/MOV for video.')
+
+      if (isVideoFile || !isImageFile) {
+        setUploadError('Invalid file type. Please upload JPG, PNG, or WebP images only.')
         return
       }
     }
@@ -365,10 +350,10 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUploadOptions(null)}>
           <div className="bg-card p-6 rounded-2xl boty-shadow max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-serif text-lg text-foreground mb-4">
-              {showUploadOptions === 0 ? "Add Image or Video" : "Add Image"}
+              {showUploadOptions === 0 ? "Add Product Image" : "Add Image"}
             </h3>
             <p className="text-xs text-muted-foreground mb-4 -mt-2">
-              {showUploadOptions === 0 ? "Slot 1 accepts images and videos (MP4, WebM, MOV)" : "Slots 2-5 accept images only"}
+              {showUploadOptions === 0 ? "Slot 1 accepts product images only" : "Slots 2-5 accept images only"}
             </p>
             <div className="flex flex-col gap-3">
               {showUploadOptions === 0 && (
@@ -378,7 +363,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
                     const sourceIdx = showUploadOptions
                     const input = document.createElement('input')
                     input.type = 'file'
-                    input.accept = 'image/*,video/mp4,video/webm,video/quicktime'
+                    input.accept = 'image/*'
                     input.capture = 'environment'
                     input.onchange = (e) => handleFileUpload((e.target as HTMLInputElement).files, sourceIdx, false)
                     input.click()
@@ -387,7 +372,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
                   className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-full text-sm tracking-wide boty-transition hover:bg-primary/90 cursor-pointer"
                 >
                   <Camera className="w-4 h-4" />
-                  Take Photo or Video
+                  Take Photo
                 </button>
               )}
               <button
@@ -464,7 +449,7 @@ export default function ImageGallery({ images, selectedImageIndex, onSelectImage
       <input
         ref={singleFileRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+        accept="image/jpeg,image/jpg,image/png,image/webp"
         onChange={(e) => {
           const sourceIdx = pendingSourceIndex.current ?? 0
           handleFileUpload(e.target.files, sourceIdx, false)

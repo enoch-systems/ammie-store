@@ -158,14 +158,7 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
         </div>
 
         {/* Product Tag */}
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            handleNavigateToReview()
-          }}
-          className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-border/50 w-full text-left cursor-pointer"
-        >
+        <div className="mb-1.5 flex w-full items-center gap-1.5 pb-1.5 text-left opacity-100 select-none pointer-events-none">
           <div className="flex h-6 w-6 md:h-10 md:w-10 items-center justify-center rounded-md bg-muted text-primary flex-shrink-0">
             <Banknote className="h-3.5 w-3.5 md:h-5 md:w-5" />
           </div>
@@ -173,7 +166,7 @@ export function ReviewCard({ review, onViewMore, actionLabel = "View More" }: Re
             <p className="text-[8px] md:text-xs text-muted-foreground">Purchased</p>
             <p className="text-[9px] md:text-sm font-medium text-foreground truncate">{normalizedReview.productName}</p>
           </div>
-        </button>
+        </div>
 
         {/* Actions */}
         <div className="flex items-center justify-center pt-1.5">

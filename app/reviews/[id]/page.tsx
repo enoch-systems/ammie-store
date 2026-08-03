@@ -20,6 +20,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalImageIndex, setModalImageIndex] = useState(0)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [galleryTouchStartX, setGalleryTouchStartX] = useState<number | null>(null)
   const [isNameModalOpen, setIsNameModalOpen] = useState(false)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [userName, setUserName] = useState("")
@@ -142,6 +143,18 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
     )
   }
 
+  const currentMedia = review.media[currentMediaIndex] ?? review.media[0]
+
+  const showNextMedia = () => {
+    if (review.media.length <= 1) return
+    setCurrentMediaIndex((prev) => (prev + 1) % review.media.length)
+  }
+
+  const showPrevMedia = () => {
+    if (review.media.length <= 1) return
+    setCurrentMediaIndex((prev) => (prev - 1 + review.media.length) % review.media.length)
+  }
+
   const handleScroll = () => {
     if (!mediaRef.current) return
 
@@ -155,6 +168,27 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
   const scrollToThumbnail = (index: number) => {
     setCurrentMediaIndex(index)
     mediaRef.current?.children[index]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+  }
+
+  const handleGalleryTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    setGalleryTouchStartX(event.changedTouches[0]?.clientX ?? null)
+  }
+
+  const handleGalleryTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (galleryTouchStartX === null || review.media.length <= 1) return
+
+    const touchEndX = event.changedTouches[0]?.clientX ?? 0
+    const deltaX = touchEndX - galleryTouchStartX
+
+    if (Math.abs(deltaX) > 50) {
+      if (deltaX < 0) {
+        showNextMedia()
+      } else {
+        showPrevMedia()
+      }
+    }
+
+    setGalleryTouchStartX(null)
   }
 
   const handleAddComment = (e: React.FormEvent) => {
@@ -286,15 +320,88 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                 </div>
 
                 <div
+                  className="relative overflow-hidden rounded-[1.25rem] border border-border/60 bg-background"
+                  onTouchStart={handleGalleryTouchStart}
+                  onTouchEnd={handleGalleryTouchEnd}
+                >
+                  {review.media.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={showPrevMedia}
+                        className="absolute left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-foreground shadow-md transition hover:bg-white"
+                        aria-label="Previous image"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={showNextMedia}
+                        className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-foreground shadow-md transition hover:bg-white"
+                        aria-label="Next image"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => openModal(currentMediaIndex)}
+                    className="relative block w-full overflow-hidden"
+                  >
+                    <div className="relative aspect-[4/3] w-full overflow-hidden sm:aspect-[16/9]">
+                      {currentMedia.type === 'image' ? (
+                        <Image
+                          src={currentMedia.url}
+                          alt={`Review media ${currentMediaIndex + 1}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 80vw"
+                          priority
+                        />
+                      ) : (
+                        <>
+                          <Image
+                            src={currentMedia.thumbnail || currentMedia.url}
+                            alt={`Video thumbnail ${currentMediaIndex + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 80vw"
+                            priority
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-lg sm:h-20 sm:w-20">
+                              <Play className="ml-1 h-8 w-8 text-primary sm:h-10 sm:w-10" fill="currentColor" />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </button>
+
+                  <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-center">
+                    <div className="rounded-full border border-white/30 bg-black/30 px-3 py-1.5 text-[10px] font-medium tracking-wide text-white backdrop-blur-sm sm:text-xs">
+                      Swipe left or right to change images
+                    </div>
+                  </div>
+                </div>
+
+                <div
                   ref={mediaRef}
                   onScroll={handleScroll}
-                  className="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory hide-scrollbar"
+                  className="mt-4 flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory hide-scrollbar"
                 >
                   {review.media.map((media, index) => (
                     <button
                       key={index}
                       type="button"
-                      onClick={() => openModal(index)}
+                      onClick={() => {
+                        setCurrentMediaIndex(index)
+                        scrollToThumbnail(index)
+                        if (index === currentMediaIndex) openModal(index)
+                      }}
                       className="group relative flex-shrink-0 snap-center overflow-hidden rounded-2xl border border-border/60 bg-muted shadow-sm"
                     >
                       <div className="relative h-24 w-24 overflow-hidden sm:h-28 sm:w-28 md:h-32 md:w-32">
@@ -303,7 +410,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                             src={media.url}
                             alt={`Review media ${index + 1}`}
                             fill
-                            className="object-cover transition-transform duration-300 group-hover:scale-105"
+                            className={`object-cover transition-all duration-300 ${index === currentMediaIndex ? 'scale-105 saturate-125' : 'group-hover:scale-105'}`}
                             sizes="(max-width: 640px) 96px, 112px"
                             priority={index === 0}
                           />
@@ -313,7 +420,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                               src={media.thumbnail || media.url}
                               alt={`Video thumbnail ${index + 1}`}
                               fill
-                              className="object-cover transition-transform duration-300 group-hover:scale-105"
+                              className={`object-cover transition-all duration-300 ${index === currentMediaIndex ? 'scale-105 saturate-125' : 'group-hover:scale-105'}`}
                               sizes="(max-width: 640px) 96px, 112px"
                               priority={index === 0}
                             />
@@ -323,6 +430,9 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                               </div>
                             </div>
                           </>
+                        )}
+                        {index === currentMediaIndex && (
+                          <div className="absolute inset-0 ring-2 ring-primary ring-inset" />
                         )}
                       </div>
                     </button>
@@ -387,10 +497,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
               </div>
 
               {/* Product Tag */}
-              <Link
-                href={`/product/${review.id}`}
-                className="mb-6 flex items-center gap-3 rounded-2xl bg-muted/50 p-4 transition-colors hover:bg-muted/80"
-              >
+              <div className="mb-6 flex items-center gap-3 rounded-2xl bg-muted/50 p-4 opacity-100 pointer-events-none select-none">
                 <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-muted text-primary">
                   <Banknote className="h-7 w-7" />
                 </div>
@@ -398,7 +505,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                   <p className="mb-1 text-xs text-muted-foreground">Purchased Product</p>
                   <p className="text-sm font-semibold text-foreground">{review.productName}</p>
                 </div>
-              </Link>
+              </div>
 
               {/* Actions */}
               <div className="flex flex-wrap items-center gap-4 border-b border-border/50 pb-6 sm:gap-6">
